@@ -7,6 +7,7 @@ import express from 'express';
 import { createClient } from '@supabase/supabase-js';
 import { AuthService } from './services/AuthService';
 import { createBillRoutes } from './api/billRoutes';
+import { createTransactionRoutes } from './api/transactionRoutes';
 import { createAIRoutes } from './api/aiRoutes';
 
 // Initialize Express app
@@ -63,6 +64,9 @@ app.post('/auth/login', async (req, res) => {
 
 // Bill routes
 app.use('/api/bills', createBillRoutes(supabase));
+
+// Transaction routes
+app.use('/api/transactions', createTransactionRoutes(supabase));
 
 // AI routes
 app.use('/api/ai', createAIRoutes(supabase));

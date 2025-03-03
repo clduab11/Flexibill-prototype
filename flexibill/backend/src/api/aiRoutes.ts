@@ -1,6 +1,8 @@
 import express from 'express';
-import { AIService } from '../services/AIService';
 import { SupabaseClient } from '@supabase/supabase-js';
+import { AIService } from '../services/AIService';
+import { BillRecommendation } from '../../../shared/types';
+import { CashFlowAnalysis } from '../services/types';
 
 export const createAIRoutes = (supabase: SupabaseClient) => {
   const router = express.Router();

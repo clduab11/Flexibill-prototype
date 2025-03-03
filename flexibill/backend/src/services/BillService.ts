@@ -1,24 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
+import { Bill, DateChangeRequest } from '../../../shared/types';
 
-export interface Bill {
-  id?: string;
-  userId: string;
-  name: string;
-  amount: number;
-  dueDate: string;
-  category?: string;
-  frequency: string;
-  autopay: boolean;
-}
-
-export interface DateChangeRequest {
-  billId: string;
-  userId: string;
-  currentDueDate: string;
-  requestedDueDate: string;
-  status: 'pending' | 'approved' | 'rejected';
-  createdAt?: string;
-}
 
 export class BillService {
   private supabase: SupabaseClient;

@@ -1,22 +1,7 @@
 import { SupabaseClient } from '@supabase/supabase-js';
-import { Bill } from './BillService';
-import { Transaction } from './PlaidService';
-
-export interface BillRecommendation {
-  billId: string;
-  currentDueDate: string;
-  recommendedDueDate: string;
-  reason: string;
-  savingsEstimate?: number;
-}
-
-export interface CashFlowAnalysis {
-  period: 'weekly' | 'monthly';
-  incomeDays: string[];
-  highExpenseDays: string[];
-  lowBalanceDays: string[];
-  recommendations: string[];
-}
+import { Bill, BillRecommendation } from '../../../shared/types';
+import { Transaction } from '../../../shared/types';
+import { CashFlowAnalysis } from './types';
 
 export class AIService {
   private supabase: SupabaseClient;

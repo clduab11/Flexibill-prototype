@@ -1,6 +1,7 @@
 import express from 'express';
-import { BillService, Bill, DateChangeRequest } from '../services/BillService';
 import { SupabaseClient } from '@supabase/supabase-js';
+import { BillService } from '../services/BillService';
+import { Bill, DateChangeRequest } from '../../../shared/types';
 
 export const createBillRoutes = (supabase: SupabaseClient) => {
   const router = express.Router();

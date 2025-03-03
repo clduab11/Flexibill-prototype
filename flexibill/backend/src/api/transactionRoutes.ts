@@ -1,6 +1,7 @@
 import express from 'express';
-import { PlaidService, Transaction } from '../services/PlaidService';
 import { SupabaseClient } from '@supabase/supabase-js';
+import { PlaidService } from '../services/PlaidService';
+import { Transaction } from '../../../shared/types';
 
 export const createTransactionRoutes = (supabase: SupabaseClient) => {
   const router = express.Router();

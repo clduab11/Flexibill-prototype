@@ -1,17 +1,41 @@
 import React, { useState } from 'react';
-import { SafeAreaView, Text, FlatList, View, StyleSheet, Button, Modal, TextInput, Alert } from 'react-native';
+import { Text, FlatList, View, StyleSheet, Button, Modal, TextInput, Alert, TouchableOpacity } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Bill } from '../../../shared/types';
 
 // Mock data for bills (replace with actual data from backend)
-const mockBills = [
-  { id: '1', name: 'Rent', amount: 1500, dueDate: '2025-03-15', category: 'Housing' },
-  { id: '2', name: 'Utilities', amount: 200, dueDate: '2025-03-20', category: 'Utilities' },
-  { id: '3', name: 'Credit Card', amount: 100, dueDate: '2025-03-25', category: 'Debt' },
+const mockBills: Bill[] = [
+  { 
+    id: '1', 
+    userId: 'user123',
+    name: 'Rent', 
+    amount: 1500, 
+    dueDate: '2025-03-15', 
+    category: 'Housing',
+    frequency: 'monthly',
+    autopay: false
+  },
+  { 
+    id: '2', 
+    userId: 'user123',
+    name: 'Utilities', 
+    amount: 200, 
+    dueDate: '2025-03-20', 
+    category: 'Utilities',
+    frequency: 'monthly',
+    autopay: false
+  },
+  { id: '3', userId: 'user123', name: 'Credit Card', amount: 100, dueDate: '2025-03-25', category: 'Debt', frequency: 'monthly', autopay: false },
 ];
 
-const BillsScreen = () => {
+interface BillsScreenProps {
+  navigation: any;
+}
+
+const BillsScreen: React.FC<BillsScreenProps> = ({ navigation }) => {
   const [bills, setBills] = useState(mockBills);
   const [modalVisible, setModalVisible] = useState(false);
-  const [selectedBill, setSelectedBill] = useState<typeof mockBills[0] | null>(null);
+  const [selectedBill, setSelectedBill] = useState<Bill | null>(null);
   const [newDueDate, setNewDueDate] = useState('');
 
   const handleRequestDateChange = (bill: typeof mockBills[0]) => {
@@ -44,12 +68,20 @@ const BillsScreen = () => {
     setSelectedBill(null);
   };
 
+  const handleAddBill = () => {
+    // In a real implementation, this would navigate to an add bill screen
+    Alert.alert("Coming Soon", "Add bill functionality will be available in the next update.");
+  };
+
   return (
     <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>Your Bills</Text>
+      <View style={styles.header}>
+        <Text style={styles.title}>Your Bills</Text>
+        <TouchableOpacity onPress={handleAddBill}><Text style={styles.addButton}>+ Add Bill</Text></TouchableOpacity>
+      </View>
       <FlatList
         data={bills}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => item.id || ''}
         renderItem={({ item }) => (
           <View style={styles.billItem}>
             <View style={styles.billInfo}>
@@ -92,6 +124,12 @@ const BillsScreen = () => {
           </View>
         </View>
       </Modal>
+      
+      <TouchableOpacity 
+        style={styles.backButton} 
+        onPress={() => navigation.goBack()}>
+        <Text style={styles.backButtonText}>Back to Home</Text>
+      </TouchableOpacity>
     </SafeAreaView>
   );
 };
@@ -101,10 +139,21 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 16,
   },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 16,
+  },
+  addButton: {
+    color: '#2e7d32',
+    fontSize: 16,
+    fontWeight: 'bold',
+    padding: 8,
   },
   modalTitle: {
     fontSize: 20,
@@ -152,6 +201,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: 16,
+  },
+  backButton: {
+    backgroundColor: '#f0f0f0',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  backButtonText: {
+    color: '#333',
+    fontWeight: 'bold',
   },
 });
 

@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { SafeAreaView, Text, FlatList, View, StyleSheet, Button, ActivityIndicator } from 'react-native';
+import { Text, FlatList, View, StyleSheet, Button, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { BillRecommendation } from '../../../shared/types';
+import { CashFlowAnalysis } from '../../../backend/src/services/types';
 
 // Mock data for AI recommendations (replace with actual API calls)
 const mockRecommendations = [
@@ -31,9 +34,13 @@ const mockCashFlow = {
   ]
 };
 
-const AIRecommendationsScreen = () => {
+interface AIRecommendationsScreenProps {
+  navigation: any;
+}
+
+const AIRecommendationsScreen: React.FC<AIRecommendationsScreenProps> = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
-  const [recommendations, setRecommendations] = useState(mockRecommendations);
+  const [recommendations, setRecommendations] = useState<BillRecommendation[]>(mockRecommendations);
   const [cashFlow, setCashFlow] = useState(mockCashFlow);
 
   useEffect(() => {
@@ -43,7 +50,7 @@ const AIRecommendationsScreen = () => {
     }, 1500);
   }, []);
 
-  const handleApplyRecommendation = (recommendation) => {
+  const handleApplyRecommendation = (recommendation: BillRecommendation) => {
     // In a real implementation, this would call the API to request a date change
     console.log(`Applying recommendation for bill ${recommendation.billId}`);
     
@@ -65,7 +72,10 @@ const AIRecommendationsScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>AI Recommendations</Text>
+      <View style={styles.header}>
+        <Text style={styles.title}>AI Recommendations</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()}><Text style={styles.backButton}>Back</Text></TouchableOpacity>
+      </View>
       
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Bill Due Date Recommendations</Text>
@@ -112,10 +122,18 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 16,
   },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 16,
+  },
+  backButton: {
+    color: '#2e7d32',
   },
   section: {
     marginBottom: 24,

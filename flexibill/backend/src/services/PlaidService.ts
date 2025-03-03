@@ -1,26 +1,8 @@
 import { SupabaseClient } from '@supabase/supabase-js';
+import { Account, Transaction, PlaidLinkResponse } from '../../../shared/types';
 
 // Note: In a real implementation, you would import the Plaid Node.js client
 // import { Configuration, PlaidApi, PlaidEnvironments } from 'plaid';
-
-export interface PlaidAccount {
-  id: string;
-  userId: string;
-  plaidAccessToken: string;
-  institution: string;
-  mask: string;
-  type: string;
-}
-
-export interface Transaction {
-  id: string;
-  accountId: string;
-  amount: number;
-  date: string;
-  category: string;
-  name: string;
-  pending: boolean;
-}
 
 export class PlaidService {
   private supabase: SupabaseClient;
@@ -59,7 +41,7 @@ export class PlaidService {
     return 'link-sandbox-placeholder-token';
   }
 
-  async exchangePublicToken(publicToken: string, userId: string): Promise<string> {
+  async exchangePublicToken(publicToken: string, userId: string, metadata?: PlaidLinkResponse['metadata']): Promise<string> {
     // In a real implementation, you would exchange the public token for an access token
     // const response = await this.plaidClient.itemPublicTokenExchange({
     //   public_token: publicToken,
@@ -75,28 +57,34 @@ export class PlaidService {
 
     // For Phase 1, return a placeholder token
     const accessToken = 'access-sandbox-placeholder-token';
-    await this.storeAccessToken(accessToken, userId);
+    await this.storeAccessToken(accessToken, userId, metadata);
     return accessToken;
   }
 
-  async storeAccessToken(accessToken: string, userId: string): Promise<void> {
+  async storeAccessToken(accessToken: string, userId: string, metadata?: PlaidLinkResponse['metadata']): Promise<void> {
     // In a real implementation, you would store the access token in the database
-    const { error } = await this.supabase
-      .from('accounts')
-      .insert({
-        userId,
-        plaidAccessToken: accessToken,
-        institution: 'Demo Bank',
-        mask: '0000',
-        type: 'checking'
-      });
+    const institution = metadata?.institution?.name || 'Demo Bank';
+    const accounts = metadata?.accounts || [{ mask: '0000', type: 'checking' }];
+    
+    // Store each account
+    for (const account of accounts) {
+      const { error } = await this.supabase
+        .from('accounts')
+        .insert({
+          userId,
+          plaidAccessToken: accessToken,
+          institution,
+          mask: account.mask,
+          type: account.type
+        });
 
-    if (error) {
-      throw error;
+      if (error) {
+        throw error;
+      }
     }
   }
 
-  async getAccounts(userId: string): Promise<PlaidAccount[]> {
+  async getAccounts(userId: string): Promise<Account[]> {
     // In a real implementation, you would fetch accounts from the database
     const { data, error } = await this.supabase
       .from('accounts')
