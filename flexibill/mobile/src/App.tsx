@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { SafeAreaView, Text, Button, View, StyleSheet } from 'react-native';
 import BillsScreen from './screens/BillsScreen';
+import AIRecommendationsScreen from './screens/AIRecommendationsScreen';
 
 // Mock data for linked accounts
 const mockLinkedAccounts = [
@@ -9,7 +10,7 @@ const mockLinkedAccounts = [
 ];
 
 const App = () => {
-  const [screen, setScreen] = useState<'home' | 'bills' | 'linkAccount'>('home');
+  const [screen, setScreen] = useState<'home' | 'bills' | 'linkAccount' | 'aiRecommendations'>('home');
   const [accounts, setAccounts] = useState(mockLinkedAccounts);
   
   // Placeholder for Plaid Link integration
@@ -52,6 +53,14 @@ const App = () => {
     );
   }
 
+  if (screen === 'aiRecommendations') {
+    return (
+      <SafeAreaView style={styles.container}>
+        <AIRecommendationsScreen />
+        <Button title="Back to Home" onPress={() => setScreen('home')} />
+      </SafeAreaView>
+    );
+  }
   // Home screen
   return (
     <SafeAreaView style={styles.container}>
@@ -61,6 +70,8 @@ const App = () => {
         <Button title="Link New Account" onPress={() => setScreen('linkAccount')} />
         <View style={styles.buttonSpacer} />
         <Button title="View Bills" onPress={() => setScreen('bills')} />
+        <View style={styles.buttonSpacer} />
+        <Button title="AI Recommendations" onPress={() => setScreen('aiRecommendations')} />
       </View>
       {accounts.map(account => (
         <View key={account.id} style={styles.accountItem}>

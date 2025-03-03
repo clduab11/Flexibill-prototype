@@ -28,3 +28,26 @@ CREATE TABLE IF NOT EXISTS public.accounts (
     mask TEXT,
     type TEXT NOT NULL DEFAULT 'checking'
 );
+
+-- Table: transactions
+CREATE TABLE IF NOT EXISTS public.transactions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    accountId UUID NOT NULL REFERENCES public.accounts(id) ON DELETE CASCADE,
+    amount NUMERIC(12,2) NOT NULL,
+    date TIMESTAMPTZ NOT NULL,
+    category TEXT,
+    name TEXT NOT NULL,
+    pending BOOLEAN NOT NULL DEFAULT false,
+    metadata JSONB
+);
+
+-- Table: date_change_requests
+CREATE TABLE IF NOT EXISTS public.date_change_requests (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    billId UUID NOT NULL REFERENCES public.bills(id) ON DELETE CASCADE,
+    userId UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    currentDueDate TIMESTAMPTZ NOT NULL,
+    requestedDueDate TIMESTAMPTZ NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    createdAt TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

@@ -1,7 +1,13 @@
+import dotenv from 'dotenv';
+
+// Load environment variables
+dotenv.config();
+
 import express from 'express';
 import { createClient } from '@supabase/supabase-js';
 import { AuthService } from './services/AuthService';
 import { createBillRoutes } from './api/billRoutes';
+import { createAIRoutes } from './api/aiRoutes';
 
 // Initialize Express app
 const app = express();
@@ -57,6 +63,9 @@ app.post('/auth/login', async (req, res) => {
 
 // Bill routes
 app.use('/api/bills', createBillRoutes(supabase));
+
+// AI routes
+app.use('/api/ai', createAIRoutes(supabase));
 
 // Health check endpoint
 app.get('/health', (req, res) => {

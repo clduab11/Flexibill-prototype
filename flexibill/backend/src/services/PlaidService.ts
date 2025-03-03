@@ -12,6 +12,16 @@ export interface PlaidAccount {
   type: string;
 }
 
+export interface Transaction {
+  id: string;
+  accountId: string;
+  amount: number;
+  date: string;
+  category: string;
+  name: string;
+  pending: boolean;
+}
+
 export class PlaidService {
   private supabase: SupabaseClient;
   // private plaidClient: PlaidApi;
@@ -63,3 +73,88 @@ export class PlaidService {
     // 
     // return accessToken;
 
+    // For Phase 1, return a placeholder token
+    const accessToken = 'access-sandbox-placeholder-token';
+    await this.storeAccessToken(accessToken, userId);
+    return accessToken;
+  }
+
+  async storeAccessToken(accessToken: string, userId: string): Promise<void> {
+    // In a real implementation, you would store the access token in the database
+    const { error } = await this.supabase
+      .from('accounts')
+      .insert({
+        userId,
+        plaidAccessToken: accessToken,
+        institution: 'Demo Bank',
+        mask: '0000',
+        type: 'checking'
+      });
+
+    if (error) {
+      throw error;
+    }
+  }
+
+  async getAccounts(userId: string): Promise<PlaidAccount[]> {
+    // In a real implementation, you would fetch accounts from the database
+    const { data, error } = await this.supabase
+      .from('accounts')
+      .select('*')
+      .eq('userId', userId);
+
+    if (error) {
+      throw error;
+    }
+
+    return data || [];
+  }
+
+  async syncTransactions(userId: string): Promise<Transaction[]> {
+    // In a real implementation, you would:
+    // 1. Get all access tokens for the user
+    // 2. Call Plaid's transactions/sync endpoint for each token
+    // 3. Store the transactions in the database
+    // 4. Return the new transactions
+
+    // For Phase 2, return mock transactions
+    const mockTransactions: Transaction[] = [
+      {
+        id: '1',
+        accountId: '1',
+        amount: 1500,
+        date: new Date().toISOString(),
+        category: 'Housing',
+        name: 'Rent Payment',
+        pending: false
+      },
+      {
+        id: '2',
+        accountId: '1',
+        amount: 200,
+        date: new Date().toISOString(),
+        category: 'Utilities',
+        name: 'Electric Bill',
+        pending: false
+      },
+      {
+        id: '3',
+        accountId: '1',
+        amount: 100,
+        date: new Date().toISOString(),
+        category: 'Debt',
+        name: 'Credit Card Payment',
+        pending: false
+      }
+    ];
+
+    // Store mock transactions in the database
+    // In a real implementation, this would be more sophisticated
+    for (const transaction of mockTransactions) {
+      console.log(`Storing transaction: ${transaction.name}`);
+      // Actual database insertion would happen here
+    }
+
+    return mockTransactions;
+  }
+}

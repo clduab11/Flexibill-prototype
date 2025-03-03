@@ -86,21 +86,31 @@ export class BillService {
     // 2. Trigger an email or API call to the biller
     // 3. Update the bill's due date once approved
     
-    // For Phase 1, we'll simulate the process by:
-    // 1. Storing the request
+    // For Phase 2, we'll implement:
+    // 1. Storing the request in the database
     // 2. Generating an email template (returned to the client)
     // 3. Updating the bill's due date after a delay (simulating approval)
     
-    // Store the request (in a real implementation)
-    // const { data, error } = await this.supabase
-    //   .from('date_change_requests')
-    //   .insert(request)
-    //   .select()
-    //   .single();
+    // Store the request
+    const { data, error } = await this.supabase
+      .from('date_change_requests')
+      .insert({
+        billId: request.billId,
+        userId: request.userId,
+        currentDueDate: request.currentDueDate,
+        requestedDueDate: request.requestedDueDate,
+        status: 'pending'
+      })
+      .select()
+      .single();
+      
+    if (error) {
+      console.error('Error storing date change request:', error);
+      // Continue with the process even if storing fails
+      // In a production environment, we would handle this more gracefully
+    }
     
-    // if (error) {
-    //   throw error;
-    // }
+    const storedRequest = data || request;
     
     // For demo purposes, automatically update the bill after a delay
     setTimeout(async () => {
@@ -108,6 +118,17 @@ export class BillService {
         await this.updateBill(request.billId, {
           dueDate: request.requestedDueDate
         });
+        
+        // Update the request status to approved
+        if (data) {
+          await this.supabase
+            .from('date_change_requests')
+            .update({
+              status: 'approved'
+            })
+            .eq('id', data.id);
+        }
+        
         console.log(`Due date changed for bill ${request.billId}`);
       } catch (error) {
         console.error('Error updating bill due date:', error);
@@ -116,7 +137,7 @@ export class BillService {
     
     // Return the request with a pending status
     return {
-      ...request,
+      ...storedRequest,
       status: 'pending',
       createdAt: new Date().toISOString()
     };
