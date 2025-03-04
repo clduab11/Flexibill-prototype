@@ -1,19 +1,19 @@
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
+import helmet from 'helmet';
 import plaidRoutes from './api/plaidRoutes';
 import billRoutes from './api/billRoutes';
 import aiRoutes from './api/aiRoutes';
 import transactionRoutes from './api/transactionRoutes';
 import authRoutes from './api/authRoutes';
 import { DatabaseService } from './db/DatabaseService';
-
-// Load environment variables
-dotenv.config();
+import { apiRateLimiter, authRateLimiter, plaidRateLimiter } from './middleware/rateLimit';
+import config from './config/environment';
+import { APIError } from './utils/errors';
 
 // Create Express app
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = config.port;
 
 // Initialize database connection
 const db = DatabaseService.getInstance();
@@ -23,10 +23,27 @@ db.initialize().catch(err => {
 });
 console.log('Database connection initialized');
 
-// Middleware
-app.use(cors());
+// Security middleware
+app.use(helmet()); // Add security headers
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || '*', // Restrict in production
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Apply general rate limiting to all API routes
+app.use('/api', apiRateLimiter);
+
+// Apply auth rate limiting to specific routes
+app.use('/api/auth/login', authRateLimiter);
+app.use('/api/auth/register', authRateLimiter);
+app.use('/api/auth/forgot-password', authRateLimiter);
+
+// Apply Plaid-specific rate limiting
+app.use('/api/plaid', plaidRateLimiter);
 
 // API Routes
 app.use('/api/auth', authRoutes);
@@ -37,32 +54,55 @@ app.use('/api/transactions', transactionRoutes);
 
 // Health check endpoint
 app.get('/health', (req: Request, res: Response) => {
-  res.json({ status: 'ok' });
+  res.json({ 
+    status: 'ok',
+    version: process.env.npm_package_version || '1.0.0',
+    environment: config.env
+  });
 });
 
 // Global error handler
-interface APIError extends Error {
-  status?: number;
-  code?: string;
-}
-
-app.use((err: APIError, req: Request, res: Response, next: NextFunction) => {
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   console.error('Unhandled error:', err);
   
+  // Check if it's our custom APIError
+  if (err instanceof APIError) {
+    res.status(err.status).json({
+      success: false,
+      error: {
+        message: err.message,
+        code: err.code
+      }
+    });
+    return;
+  }
+  
+  // Handle specific error types
+  if (err.code === 'P2025') { // Prisma not found error
+    res.status(404).json({
+      success: false,
+      error: {
+        message: 'The requested resource was not found',
+        code: 'NOT_FOUND_ERROR'
+      }
+    });
+    return;
+  }
+  
+  // Default error response
   const statusCode = err.status || 500;
-  const errorResponse = {
+  res.status(statusCode).json({
+    success: false,
     error: {
       message: err.message || 'Internal Server Error',
       code: err.code || 'INTERNAL_ERROR'
     }
-  };
-
-  res.status(statusCode).json(errorResponse);
+  });
 });
 
 // Start server
 const server = app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`Server running in ${config.env} mode on port ${PORT}`);
 });
 
 // Graceful shutdown
