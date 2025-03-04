@@ -1,19 +1,21 @@
-import { DataSharingPreferences } from './dataSharing';
-
 export interface User {
   id: string;
   email: string;
+  name: string;
   subscription: 'free' | 'premium';
-  dataSharing: DataSharingPreferences;
-  created_at: string;
-}
-
-export interface AuthResponse {
-  user: User | null;
-  session: {
-    access_token: string;
-    refresh_token: string;
-    expires_at: number;
-  } | null;
-  error: string | null;
+  dataSharing: {
+    sharingLevel: 'none' | 'basic' | 'full';
+    anonymizeAmount: boolean;
+    anonymizeDates: boolean;
+    customCategories: boolean;
+  };
+  preferences: {
+    notifications: boolean;
+    darkMode: boolean;
+    currency: string;
+    language: string;
+  };
+  created_at: Date;
+  updated_at: Date;
+  last_login: Date;
 }

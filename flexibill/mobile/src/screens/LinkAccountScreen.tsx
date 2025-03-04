@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import PlaidService, { PlaidLinkToken, PlaidLinkMetadata } from '../services/PlaidService';
 
 interface LinkAccountScreenProps {
   navigation: any;
@@ -8,38 +9,104 @@ interface LinkAccountScreenProps {
 
 const LinkAccountScreen: React.FC<LinkAccountScreenProps> = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
+  const [linkToken, setLinkToken] = useState<string | null>(null);
 
-  const handleLinkAccount = () => {
+  // Fetch the link token from the backend
+  const fetchLinkToken = useCallback(async () => {
+    console.log('Fetching Plaid Link token...');
     setLoading(true);
-
-    // In a real implementation, this would open the Plaid Link UI
-    // For Phase 1, simulate a successful account link
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      const linkTokenData = await PlaidService.createLinkToken();
+      console.log('Plaid Link token fetched:', linkTokenData);
       
-      // Show success message
+      if (linkTokenData) {
+        setLinkToken(linkTokenData.linkToken);
+      } else {
+        throw new Error('Failed to get link token');
+      }
+    } catch (error) {
+      console.error('Error fetching link token:', error);
+      Alert.alert('Error', 'Failed to fetch link token. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchLinkToken();
+  }, [fetchLinkToken]);
+
+  const handleConnectBank = useCallback(async () => {
+    if (!linkToken) {
+      Alert.alert('Error', 'Link token not available. Please try again.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      console.log('Simulating Plaid Link with token:', linkToken);
+      
+      // In a real implementation, we would use the Plaid SDK to open the link
+      // For now, we'll just simulate a successful connection
       Alert.alert(
-        "Account Linked",
-        "Your bank account has been successfully linked to FlexiBill.",
+        "Plaid Integration",
+        "In a real implementation, this would open the Plaid Link interface to connect your bank account. For now, we'll simulate a successful connection.",
         [
-          { 
-            text: "OK", 
-            onPress: () => navigation.navigate('Home')
+          {
+            text: "Simulate Success",
+            onPress: async () => {
+              try {
+                // Simulate a successful account linking
+                const success = await PlaidService.simulateSuccessfulLink();
+                if (success) {
+                  Alert.alert(
+                    "Account Linked",
+                    "Your bank account has been successfully linked to FlexiBill.",
+                    [{ text: "OK", onPress: () => navigation.navigate('Home') }]
+                  );
+                } else {
+                  throw new Error('Failed to link account');
+                }
+              } catch (error) {
+                console.error('Error in simulated link:', error);
+                Alert.alert('Error', 'Failed to link account. Please try again.');
+              } finally {
+                setLoading(false);
+              }
+            }
+          },
+          {
+            text: "Simulate Failure",
+            onPress: () => {
+              setLoading(false);
+              Alert.alert('Error', 'Failed to link account. Please try again.');
+            }
+          },
+          {
+            text: "Cancel",
+            style: "cancel",
+            onPress: () => {
+              setLoading(false);
+            }
           }
         ]
       );
-    }, 2000);
-  };
+    } catch (error) {
+      console.error('Error opening Plaid Link:', error);
+      Alert.alert('Error', 'Failed to open Plaid Link. Please try again.');
+      setLoading(false);
+    }
+  }, [linkToken, navigation]);
 
   return (
     <SafeAreaView style={styles.container}>
       <Text style={styles.title}>Link a New Account</Text>
-      
+
       <View style={styles.infoContainer}>
         <Text style={styles.subtitle}>
           Connect your bank account to automatically import transactions and bills.
         </Text>
-        
+
         <View style={styles.securityInfo}>
           <Text style={styles.securityTitle}>Your Security is Our Priority</Text>
           <Text style={styles.securityText}>
@@ -53,12 +120,12 @@ const LinkAccountScreen: React.FC<LinkAccountScreenProps> = ({ navigation }) => 
           </Text>
         </View>
       </View>
-      
+
       <View style={styles.buttonContainer}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.linkButton}
-          onPress={handleLinkAccount}
-          disabled={loading}
+          onPress={handleConnectBank}
+          disabled={loading || !linkToken}
         >
           {loading ? (
             <ActivityIndicator color="#fff" />
@@ -67,7 +134,7 @@ const LinkAccountScreen: React.FC<LinkAccountScreenProps> = ({ navigation }) => 
           )}
         </TouchableOpacity>
         
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.cancelButton}
           onPress={() => navigation.goBack()}
           disabled={loading}
@@ -75,7 +142,7 @@ const LinkAccountScreen: React.FC<LinkAccountScreenProps> = ({ navigation }) => 
           <Text style={styles.cancelButtonText}>Cancel</Text>
         </TouchableOpacity>
       </View>
-      
+
       <View style={styles.supportContainer}>
         <Text style={styles.supportText}>
           Having trouble? Contact our support team for assistance.

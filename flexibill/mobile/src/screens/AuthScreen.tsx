@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import ApiService from '../services/ApiService';
 
 type AuthMode = 'login' | 'register';
 
@@ -11,6 +12,8 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation }) => {
   const [mode, setMode] = useState<AuthMode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,16 +32,42 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation }) => {
     setError(null);
 
     try {
-      // In a real implementation, this would call the API
-      // For Phase 1, simulate a successful login/register
-      setTimeout(() => {
+      let response;
+      
+      if (mode === 'login') {
+        response = await ApiService.login(email, password);
+      } else {
+        response = await ApiService.register(email, password, firstName, lastName);
+      }
+      
+      if (response.success) {
         setLoading(false);
-        // Navigate to home screen
         navigation.navigate('Home');
-      }, 1500);
-    } catch (err) {
+      } else {
+        setLoading(false);
+        setError(response.error?.message || 'Authentication failed');
+      }
+    } catch (err: any) {
       setLoading(false);
-      setError('Authentication failed. Please try again.');
+      setError(err.message || 'Authentication failed. Please try again.');
+      console.error('Auth error:', err);
+    }
+  };
+  
+  const handleForgotPassword = async () => {
+    if (!email) {
+      setError('Please enter your email address');
+      return;
+    }
+    
+    try {
+      const response = await ApiService.forgotPassword(email);
+      
+      if (response.success) {
+        Alert.alert('Password Reset', 'If your email is registered, you will receive password reset instructions.');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to request password reset');
       console.error('Auth error:', err);
     }
   };
@@ -53,6 +82,22 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation }) => {
 
         {error && <Text style={styles.errorText}>{error}</Text>}
 
+        {mode === 'register' && (
+          <>
+            <TextInput
+              style={styles.input}
+              placeholder="First Name"
+              value={firstName}
+              onChangeText={setFirstName}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Last Name"
+              value={lastName}
+              onChangeText={setLastName}
+            />
+          </>
+        )}
         <TextInput
           style={styles.input}
           placeholder="Email"
@@ -83,6 +128,14 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation }) => {
             </Text>
           )}
         </TouchableOpacity>
+
+        {mode === 'login' && (
+          <TouchableOpacity onPress={handleForgotPassword} style={styles.forgotButton}>
+            <Text style={styles.forgotText}>
+              Forgot Password?
+            </Text>
+          </TouchableOpacity>
+        )}
 
         <TouchableOpacity onPress={toggleMode} style={styles.toggleButton}>
           <Text style={styles.toggleText}>
@@ -155,7 +208,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   toggleButton: {
-    marginTop: 20,
+    marginTop: 10,
     alignItems: 'center',
   },
   toggleText: {
@@ -166,6 +219,14 @@ const styles = StyleSheet.create({
     color: 'red',
     marginBottom: 10,
     textAlign: 'center',
+  },
+  forgotButton: {
+    marginTop: 10,
+    alignItems: 'center',
+  },
+  forgotText: {
+    color: '#666',
+    fontSize: 14,
   },
 });
 

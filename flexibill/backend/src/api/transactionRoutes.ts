@@ -1,98 +1,164 @@
 import express from 'express';
-import { SupabaseClient } from '@supabase/supabase-js';
-import { PlaidService } from '../services/PlaidService';
-import { Transaction } from '../../../shared/types';
+import { Request, Response } from 'express';
+import { body, query, param } from 'express-validator';
+import { Transaction, TransactionFilter } from '@shared/types';
+import { authenticateUser } from '../middleware/authMiddleware';
+import { validate } from '../middleware/validation';
+import TransactionService from '../services/TransactionService';
+import { NotFoundError, ValidationError } from '../utils/errors';
+import { APIResponse } from '../utils/response';
 
-export const createTransactionRoutes = (supabase: SupabaseClient) => {
-  const router = express.Router();
-  const plaidService = new PlaidService(supabase);
+const router = express.Router();
+const transactionService = new TransactionService();
 
-  // Middleware to verify user authentication
-  const authenticateUser = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
-    const token = req.headers.authorization?.split(' ')[1];
-    
-    if (!token) {
-      return res.status(401).json({ error: 'Authentication token required' });
-    }
+// Validation schemas
+const transactionFilterValidation = [
+  query('startDate').optional().isISO8601(),
+  query('endDate').optional().isISO8601(),
+  query('minAmount').optional().isFloat({ min: 0 }),
+  query('maxAmount').optional().isFloat({ min: 0 }),
+  query('categories').optional().isArray(),
+  query('categories.*').optional().isString(),
+  query('merchants').optional().isArray(),
+  query('merchants.*').optional().isString(),
+  query('tags').optional().isArray(),
+  query('tags.*').optional().isString(),
+  query('excludeCategories').optional().isArray(),
+  query('excludeCategories.*').optional().isString(),
+  query('excludeMerchants').optional().isArray(),
+  query('excludeMerchants.*').optional().isString(),
+  query('excludeTags').optional().isArray(),
+  query('excludeTags.*').optional().isString(),
+  query('isRecurring').optional().isBoolean(),
+  query('searchTerm').optional().isString(),
+  query('accountIds').optional().isArray(),
+  query('accountIds.*').optional().isUUID(),
+  query('pending').optional().isBoolean(),
+  query('paymentChannels').optional().isArray(),
+  query('paymentChannels.*').optional().isIn(['online', 'in store', 'other'])
+];
 
+// Get transactions with filtering
+router.get('/',
+  authenticateUser,
+  validate(transactionFilterValidation),
+  async (req: Request, res: Response) => {
     try {
-      const { data: { user }, error } = await supabase.auth.getUser(token);
-      
-      if (error || !user) {
-        return res.status(401).json({ error: 'Invalid authentication token' });
+      const userId = req.user?.id;
+      if (!userId) {
+        return APIResponse.unauthorized(res);
       }
-      
-      // Add user ID to request for use in route handlers
-      req.body.userId = user.id;
-      next();
-    } catch (error) {
-      console.error('Authentication error:', error);
-      return res.status(500).json({ error: 'Authentication failed' });
-    }
-  };
 
-  // Apply authentication middleware to all routes
-  router.use(authenticateUser);
+      const filter: TransactionFilter = {
+        startDate: req.query.startDate as string | undefined,
+        endDate: req.query.endDate as string | undefined,
+        minAmount: req.query.minAmount ? parseFloat(req.query.minAmount as string) : undefined,
+        maxAmount: req.query.maxAmount ? parseFloat(req.query.maxAmount as string) : undefined,
+        categories: req.query.categories as string[] | undefined,
+        merchants: req.query.merchants as string[] | undefined,
+        tags: req.query.tags as string[] | undefined,
+        excludeCategories: req.query.excludeCategories as string[] | undefined,
+        excludeMerchants: req.query.excludeMerchants as string[] | undefined,
+        excludeTags: req.query.excludeTags as string[] | undefined,
+        isRecurring: req.query.isRecurring === 'true' ? true : 
+                    req.query.isRecurring === 'false' ? false : undefined,
+        searchTerm: req.query.searchTerm as string | undefined,
+        accountIds: req.query.accountIds as string[] | undefined,
+        pending: req.query.pending === 'true' ? true :
+                req.query.pending === 'false' ? false : undefined,
+        paymentChannels: req.query.paymentChannels as ('online' | 'in store' | 'other')[] | undefined
+      };
 
-  // Get all transactions for the authenticated user
-  router.get('/', async (req, res) => {
-    try {
-      const userId = req.body.userId;
-      
-      // In a real implementation, this would fetch transactions from the database
-      // For Phase 2, we'll use the mock transactions from PlaidService
-      const transactions = await plaidService.syncTransactions(userId);
-      
-      res.json(transactions);
+      const transactions = await transactionService.getTransactions(userId, filter);
+      return APIResponse.success(res, { transactions });
     } catch (error) {
       console.error('Error fetching transactions:', error);
-      res.status(500).json({ error: 'Failed to fetch transactions' });
+      return APIResponse.internalError(res);
     }
-  });
+  }
+);
 
-  // Sync transactions from Plaid
-  router.post('/sync', async (req, res) => {
+// Update transaction tags
+router.put('/:id/tags',
+  authenticateUser,
+  validate([
+    param('id').isUUID(),
+    body('tags').isArray(),
+    body('tags.*').isString().trim().notEmpty()
+  ]),
+  async (req: Request, res: Response) => {
     try {
-      const userId = req.body.userId;
-      
-      // Trigger a transaction sync
-      const transactions = await plaidService.syncTransactions(userId);
-      
-      res.json({
-        message: 'Transactions synced successfully',
-        count: transactions.length,
-        transactions
-      });
-    } catch (error) {
-      console.error('Error syncing transactions:', error);
-      res.status(500).json({ error: 'Failed to sync transactions' });
-    }
-  });
+      const userId = req.user?.id;
+      if (!userId) {
+        return APIResponse.unauthorized(res);
+      }
 
-  // Get transaction categories
-  router.get('/categories', async (req, res) => {
+      const transaction = await transactionService.updateTransactionTags(
+        userId,
+        req.params.id,
+        req.body.tags
+      );
+      return APIResponse.success(res, { transaction });
+    } catch (error) {
+      if (error instanceof NotFoundError) {
+        return APIResponse.notFound(res, error.message);
+      }
+      if (error instanceof ValidationError) {
+        return APIResponse.badRequest(res, error.message);
+      }
+      console.error('Error updating transaction tags:', error);
+      return APIResponse.internalError(res);
+    }
+  }
+);
+
+// Get recurring transactions
+router.get('/recurring',
+  authenticateUser,
+  async (req: Request, res: Response) => {
     try {
-      // In a real implementation, this would fetch categories from Plaid
-      // For Phase 2, return mock categories
-      const categories = [
-        'Housing',
-        'Transportation',
-        'Food',
-        'Utilities',
-        'Insurance',
-        'Medical',
-        'Debt',
-        'Entertainment',
-        'Personal',
-        'Other'
-      ];
-      
-      res.json(categories);
-    } catch (error) {
-      console.error('Error fetching categories:', error);
-      res.status(500).json({ error: 'Failed to fetch categories' });
-    }
-  });
+      const userId = req.user?.id;
+      if (!userId) {
+        return APIResponse.unauthorized(res);
+      }
 
-  return router;
-};
+      const transactions = await transactionService.detectRecurringTransactions(userId);
+      return APIResponse.success(res, { transactions });
+    } catch (error) {
+      console.error('Error detecting recurring transactions:', error);
+      return APIResponse.internalError(res);
+    }
+  }
+);
+
+// Categorize transactions
+router.post('/categorize',
+  authenticateUser,
+  validate([
+    body().isArray(),
+    body('*.id').isUUID(),
+    body('*.userId').custom((value, { req }) => value === req.user?.id)
+  ]),
+  async (req: Request, res: Response) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return APIResponse.unauthorized(res);
+      }
+
+      const transactions = await transactionService.categorizeTransactions(
+        userId,
+        req.body as Transaction[]
+      );
+      return APIResponse.success(res, { transactions });
+    } catch (error) {
+      if (error instanceof ValidationError) {
+        return APIResponse.badRequest(res, error.message);
+      }
+      console.error('Error categorizing transactions:', error);
+      return APIResponse.internalError(res);
+    }
+  }
+);
+
+export default router;

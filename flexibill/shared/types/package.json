@@ -1,0 +1,14 @@
+{
+  "name": "@flexibill/shared",
+  "version": "1.0.0",
+  "description": "Shared types and utilities for FlexiBill",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w"
+  },
+  "devDependencies": {
+    "typescript": "^4.5.4"
+  }
+}

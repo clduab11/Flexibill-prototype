@@ -1,87 +1,112 @@
+import express, { Request, Response, NextFunction } from 'express';
+import cors from 'cors';
 import dotenv from 'dotenv';
+import plaidRoutes from './api/plaidRoutes';
+import billRoutes from './api/billRoutes';
+import aiRoutes from './api/aiRoutes';
+import transactionRoutes from './api/transactionRoutes';
+import authRoutes from './api/authRoutes';
+import { DatabaseService } from './db/DatabaseService';
 
 // Load environment variables
 dotenv.config();
 
-import express from 'express';
-import { createClient } from '@supabase/supabase-js';
-import { AuthService } from './services/AuthService';
-import { createBillRoutes } from './api/billRoutes';
-import { createTransactionRoutes } from './api/transactionRoutes';
-import { createAIRoutes } from './api/aiRoutes';
-
-// Initialize Express app
+// Create Express app
 const app = express();
-const port = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3000;
+
+// Initialize database connection
+const db = DatabaseService.getInstance();
+db.initialize().catch(err => {
+  console.error('Failed to initialize database connection:', err);
+  process.exit(1);
+});
+console.log('Database connection initialized');
 
 // Middleware
+app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// CORS middleware
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
-  }
-  
-  next();
-});
-
-// Initialize Supabase client
-const supabaseUrl = process.env.SUPABASE_URL || 'https://your-supabase-url.supabase.co';
-const supabaseKey = process.env.SUPABASE_KEY || 'your-supabase-key';
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-// Initialize services
-const authService = new AuthService(supabase);
-
-// Authentication routes
-app.post('/auth/register', async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    const user = await authService.register(email, password);
-    res.status(201).json({ user });
-  } catch (error) {
-    console.error('Registration error:', error);
-    res.status(400).json({ error: 'Registration failed' });
-  }
-});
-
-app.post('/auth/login', async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    const session = await authService.login(email, password);
-    res.json({ session });
-  } catch (error) {
-    console.error('Login error:', error);
-    res.status(401).json({ error: 'Login failed' });
-  }
-});
-
-// Bill routes
-app.use('/api/bills', createBillRoutes(supabase));
-
-// Transaction routes
-app.use('/api/transactions', createTransactionRoutes(supabase));
-
-// AI routes
-app.use('/api/ai', createAIRoutes(supabase));
+// API Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/plaid', plaidRoutes);
+app.use('/api/bills', billRoutes);
+app.use('/api/ai', aiRoutes);
+app.use('/api/transactions', transactionRoutes);
 
 // Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+app.get('/health', (req: Request, res: Response) => {
+  res.json({ status: 'ok' });
 });
 
-// Start the server
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
+// Global error handler
+interface APIError extends Error {
+  status?: number;
+  code?: string;
+}
+
+app.use((err: APIError, req: Request, res: Response, next: NextFunction) => {
+  console.error('Unhandled error:', err);
+  
+  const statusCode = err.status || 500;
+  const errorResponse = {
+    error: {
+      message: err.message || 'Internal Server Error',
+      code: err.code || 'INTERNAL_ERROR'
+    }
+  };
+
+  res.status(statusCode).json(errorResponse);
 });
 
-// Handle unhandled promise rejections
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+// Start server
+const server = app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM signal received: closing HTTP server');
+  server.close(async () => {
+    try {
+      await db.destroy();
+      console.log('Database connection closed');
+      console.log('HTTP server closed');
+      process.exit(0);
+    } catch (err) {
+      console.error('Error during graceful shutdown:', err);
+      process.exit(1);
+    }
+  });
+});
+
+process.on('uncaughtException', (error: Error) => {
+  console.error('Uncaught Exception:', error);
+  server.close(async () => {
+    try {
+      await db.destroy();
+      console.log('Database connection closed');
+    } catch (err) {
+      console.error('Error closing database connection:', err);
+    } finally {
+      process.exit(1);
+    }
+  });
+});
+
+process.on('unhandledRejection', (reason: Error | any) => {
+  console.error('Unhandled Rejection:', reason);
+  server.close(async () => {
+    try {
+      await db.destroy();
+      console.log('Database connection closed');
+    } catch (err) {
+      console.error('Error closing database connection:', err);
+    } finally {
+      process.exit(1);
+    }
+  });
+});
+
+export default server;

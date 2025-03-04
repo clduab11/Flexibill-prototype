@@ -1,155 +1,168 @@
-import { SupabaseClient } from '@supabase/supabase-js';
-import { Bill, DateChangeRequest } from '../../../shared/types';
+import { randomUUID } from 'crypto';
+import { Bill, Transaction, BillRecommendation, BillFrequency } from '@shared/types';
+import { Database } from '../db/database';
+import AIService from './AIService';
+import { NotFoundError, ValidationError } from '../utils/errors';
 
+interface CreateBillData {
+  name: string;
+  amount: number;
+  dueDate: string;
+  frequency: BillFrequency;
+  category?: string;
+  autopay: boolean;
+  reminderDays: number[];
+  notes?: string;
+}
 
-export class BillService {
-  private supabase: SupabaseClient;
+class BillService {
+  private db: Database;
+  private aiService: AIService;
 
-  constructor(supabase: SupabaseClient) {
-    this.supabase = supabase;
+  constructor() {
+    this.db = new Database();
+    this.aiService = new AIService();
   }
 
-  async getBills(userId: string): Promise<Bill[]> {
-    const { data, error } = await this.supabase
-      .from('bills')
-      .select('*')
-      .eq('userId', userId);
+  async createBill(userId: string, billData: CreateBillData): Promise<Bill> {
+    try {
+      const bill: Bill = {
+        id: randomUUID(),
+        userId,
+        ...billData,
+        created_at: new Date(),
+        updated_at: new Date()
+      };
 
-    if (error) {
-      throw error;
-    }
+      // Validate bill data
+      this.validateBill(bill);
 
-    return data || [];
-  }
-
-  async addBill(bill: Bill): Promise<Bill> {
-    const { data, error } = await this.supabase
-      .from('bills')
-      .insert(bill)
-      .select()
-      .single();
-
-    if (error) {
-      throw error;
-    }
-
-    return data;
-  }
-
-  async updateBill(id: string, bill: Partial<Bill>): Promise<Bill> {
-    const { data, error } = await this.supabase
-      .from('bills')
-      .update(bill)
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) {
-      throw error;
-    }
-
-    return data;
-  }
-
-  async deleteBill(id: string): Promise<void> {
-    const { error } = await this.supabase
-      .from('bills')
-      .delete()
-      .eq('id', id);
-
-    if (error) {
-      throw error;
-    }
-  }
-
-  async requestDateChange(request: DateChangeRequest): Promise<DateChangeRequest> {
-    // In a real implementation, this would:
-    // 1. Store the request in a database
-    // 2. Trigger an email or API call to the biller
-    // 3. Update the bill's due date once approved
-    
-    // For Phase 2, we'll implement:
-    // 1. Storing the request in the database
-    // 2. Generating an email template (returned to the client)
-    // 3. Updating the bill's due date after a delay (simulating approval)
-    
-    // Store the request
-    const { data, error } = await this.supabase
-      .from('date_change_requests')
-      .insert({
-        billId: request.billId,
-        userId: request.userId,
-        currentDueDate: request.currentDueDate,
-        requestedDueDate: request.requestedDueDate,
-        status: 'pending'
-      })
-      .select()
-      .single();
-      
-    if (error) {
-      console.error('Error storing date change request:', error);
-      // Continue with the process even if storing fails
-      // In a production environment, we would handle this more gracefully
-    }
-    
-    const storedRequest = data || request;
-    
-    // For demo purposes, automatically update the bill after a delay
-    setTimeout(async () => {
-      try {
-        await this.updateBill(request.billId, {
-          dueDate: request.requestedDueDate
-        });
-        
-        // Update the request status to approved
-        if (data) {
-          await this.supabase
-            .from('date_change_requests')
-            .update({
-              status: 'approved'
-            })
-            .eq('id', data.id);
-        }
-        
-        console.log(`Due date changed for bill ${request.billId}`);
-      } catch (error) {
-        console.error('Error updating bill due date:', error);
+      // Save to database
+      return await this.db.bills.create(bill);
+    } catch (error) {
+      console.error('Error creating bill:', error);
+      if (error instanceof ValidationError) {
+        throw error;
       }
-    }, 5000); // 5 seconds delay to simulate processing
-    
-    // Return the request with a pending status
-    return {
-      ...storedRequest,
-      status: 'pending',
-      createdAt: new Date().toISOString()
-    };
+      throw new Error('Failed to create bill');
+    }
   }
-  
-  generateEmailTemplate(request: DateChangeRequest, bill: Bill): string {
-    // Generate an email template that the user could send to their biller
-    return `
-Subject: Request to Change Due Date for Account #[Your Account Number]
 
-Dear [Biller Name],
+  async getBill(userId: string, billId: string): Promise<Bill> {
+    const bill = await this.db.bills.findById(billId);
+    
+    if (!bill) {
+      throw new NotFoundError('Bill not found');
+    }
 
-I am writing to request a change to my monthly payment due date for my account.
+    if (bill.userId !== userId) {
+      throw new ValidationError('Unauthorized access to bill');
+    }
 
-Current Details:
-- Account Number: [Your Account Number]
-- Current Due Date: ${request.currentDueDate}
-- Payment Amount: $${bill.amount}
+    return bill;
+  }
 
-I would like to request that my new due date be changed to the ${new Date(request.requestedDueDate).getDate()}th of each month.
+  async updateBill(
+    userId: string, 
+    billId: string, 
+    updates: Partial<CreateBillData>
+  ): Promise<Bill> {
+    const existingBill = await this.getBill(userId, billId);
 
-This change would help me better manage my monthly cash flow and ensure timely payments.
+    const updatedBill: Bill = {
+      ...existingBill,
+      ...updates,
+      updated_at: new Date()
+    };
 
-Please let me know if you need any additional information to process this request.
+    // Validate updated bill data
+    this.validateBill(updatedBill);
 
-Thank you for your assistance.
+    // Save to database
+    return await this.db.bills.update(billId, updatedBill);
+  }
 
-Sincerely,
-[Your Name]
-[Your Contact Information]
-    `;
+  async deleteBill(userId: string, billId: string): Promise<void> {
+    await this.getBill(userId, billId); // Check existence and ownership
+    await this.db.bills.delete(billId);
+  }
+
+  async getUserBills(userId: string): Promise<Bill[]> {
+    return await this.db.bills.findByUserId(userId);
+  }
+
+  async optimizeBillSchedule(userId: string): Promise<void> {
+    // Get user's bills and transactions
+    const [bills, transactions] = await Promise.all([
+      this.getUserBills(userId),
+      this.db.transactions.findByUserId(userId)
+    ]);
+
+    // Get AI recommendations
+    const recommendations = await this.aiService.generateBillRecommendations(bills, transactions);
+
+    // Update bills with new due dates based on recommendations
+    await Promise.all(
+      recommendations.map(async (rec) => {
+        if (rec.status === 'accepted') {
+          await this.updateBill(userId, rec.billId, {
+            dueDate: rec.recommendedDueDate
+          });
+        }
+      })
+    );
+  }
+
+  private validateBill(bill: Bill): void {
+    if (!bill.name || bill.name.trim().length === 0) {
+      throw new ValidationError('Bill name is required');
+    }
+
+    if (bill.amount <= 0) {
+      throw new ValidationError('Bill amount must be greater than 0');
+    }
+
+    if (!bill.dueDate) {
+      throw new ValidationError('Due date is required');
+    }
+
+    const validFrequencies: BillFrequency[] = ['once', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly'];
+    if (!validFrequencies.includes(bill.frequency)) {
+      throw new ValidationError('Invalid bill frequency');
+    }
+
+    if (bill.reminderDays) {
+      if (!Array.isArray(bill.reminderDays)) {
+        throw new ValidationError('Reminder days must be an array');
+      }
+
+      if (bill.reminderDays.some(days => !Number.isInteger(days) || days < 1 || days > 30)) {
+        throw new ValidationError('Reminder days must be integers between 1 and 30');
+      }
+    }
+  }
+
+  async getBillsByDateRange(userId: string, startDate: Date, endDate: Date): Promise<Bill[]> {
+    return await this.db.bills.findByDateRange(userId, startDate, endDate);
+  }
+
+  async getBillsForMonth(userId: string, year: number, month: number): Promise<Bill[]> {
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 0);
+    return await this.getBillsByDateRange(userId, startDate, endDate);
+  }
+
+  async getUpcomingBills(userId: string, days: number = 7): Promise<Bill[]> {
+    const startDate = new Date();
+    const endDate = new Date(startDate.getTime() + days * 24 * 60 * 60 * 1000);
+    return await this.getBillsByDateRange(userId, startDate, endDate);
+  }
+
+  async getOverdueBills(userId: string): Promise<Bill[]> {
+    const today = new Date();
+    const bills = await this.getUserBills(userId);
+    return bills.filter(bill => new Date(bill.dueDate) < today);
   }
 }
+
+export default BillService;

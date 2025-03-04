@@ -1,92 +1,264 @@
-import { SupabaseClient } from '@supabase/supabase-js';
-import { Bill, BillRecommendation } from '../../../shared/types';
-import { Transaction } from '../../../shared/types';
-import { CashFlowAnalysis } from './types';
+import OpenAI from 'openai';
+import { ChatCompletion, ChatCompletionMessageParam } from 'openai/resources';
+import { randomUUID } from 'crypto';
+import { BillRecommendation, CashFlowAnalysis, Bill, Transaction } from '@shared/types';
+import { AzureOpenAIError } from '../utils/errors';
 
-export class AIService {
-  private supabase: SupabaseClient;
+class AIService {
+  private client: OpenAI;
+  private model: string;
 
-  constructor(supabase: SupabaseClient) {
-    this.supabase = supabase;
+  constructor() {
+    this.client = new OpenAI({
+      apiKey: process.env.AZURE_OPENAI_API_KEY || '',
+      baseURL: `${process.env.AZURE_OPENAI_ENDPOINT}/openai/deployments/${process.env.AZURE_OPENAI_DEPLOYMENT}`,
+      defaultQuery: { 'api-version': '2023-05-15' },
+      defaultHeaders: { 'api-key': process.env.AZURE_OPENAI_API_KEY }
+    });
+    this.model = process.env.AZURE_OPENAI_MODEL || 'gpt-4';
   }
 
-  async analyzeBills(userId: string): Promise<BillRecommendation[]> {
-    // In a real implementation, this would:
-    // 1. Fetch the user's bills and transactions
-    // 2. Use AI to analyze payment patterns and cash flow
-    // 3. Generate recommendations for bill due date changes
-
-    // For Phase 2, return mock recommendations
-    const { data: bills, error } = await this.supabase
-      .from('bills')
-      .select('*')
-      .eq('userId', userId);
-
-    if (error) {
-      throw error;
-    }
-
-    // Generate simple recommendations based on bill due dates
-    const recommendations: BillRecommendation[] = [];
-    
-    if (bills && bills.length > 0) {
-      // Find bills that are due close to each other
-      const sortedBills = [...bills].sort((a, b) => 
-        new Date(a.dueDate).getDate() - new Date(b.dueDate).getDate()
-      );
-      
-      for (let i = 0; i < sortedBills.length - 1; i++) {
-        const currentBill = sortedBills[i];
-        const nextBill = sortedBills[i + 1];
-        
-        const currentDate = new Date(currentBill.dueDate).getDate();
-        const nextDate = new Date(nextBill.dueDate).getDate();
-        
-        // If bills are due within 2 days of each other, recommend spreading them out
-        if (Math.abs(currentDate - nextDate) <= 2) {
-          const newDueDate = new Date(nextBill.dueDate);
-          newDueDate.setDate(currentDate + 7); // Move it 7 days later
-          
-          recommendations.push({
-            billId: nextBill.id,
-            currentDueDate: nextBill.dueDate,
-            recommendedDueDate: newDueDate.toISOString(),
-            reason: `This bill is due very close to your ${currentBill.name} payment. Spreading them out can help manage cash flow.`,
-            savingsEstimate: 0 // No direct savings, but helps with cash flow
-          });
+  async generateBillRecommendations(
+    bills: Bill[],
+    transactions: Transaction[]
+  ): Promise<BillRecommendation[]> {
+    try {
+      const prompt = this.createBillRecommendationsPrompt(bills, transactions);
+      const messages: ChatCompletionMessageParam[] = [
+        {
+          role: 'system',
+          content: 'You are a financial advisor specializing in bill payment optimization.'
+        },
+        {
+          role: 'user',
+          content: prompt
         }
-      }
+      ];
+
+      const completion = await this.client.chat.completions.create({
+        model: this.model,
+        messages,
+        temperature: 0.3,
+        max_tokens: 800
+      });
+
+      return this.parseBillRecommendations(completion.choices[0].message.content || '');
+    } catch (error) {
+      console.error('Error generating bill recommendations:', error);
+      throw new AzureOpenAIError('Failed to generate bill recommendations');
     }
-
-    return recommendations;
   }
 
-  async getCashFlowAnalysis(userId: string): Promise<CashFlowAnalysis> {
-    // In a real implementation, this would:
-    // 1. Fetch the user's transactions
-    // 2. Analyze income and expense patterns
-    // 3. Identify potential cash flow issues
+  async analyzeCashFlow(
+    transactions: Transaction[],
+    bills: Bill[]
+  ): Promise<CashFlowAnalysis> {
+    try {
+      const prompt = this.createCashFlowAnalysisPrompt(transactions, bills);
+      const messages: ChatCompletionMessageParam[] = [
+        {
+          role: 'system',
+          content: 'You are a cash flow analysis expert.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ];
 
-    // For Phase 2, return mock analysis
-    return {
-      period: 'monthly',
-      incomeDays: ['1st', '15th'],
-      highExpenseDays: ['5th', '20th'],
-      lowBalanceDays: ['10th-14th', '25th-30th'],
-      recommendations: [
-        'Consider moving your utility bill from the 12th to the 17th to better align with your income',
-        'Your rent payment on the 1st is close to your income day, but you might want a buffer of 1-2 days',
-        'Try to schedule automatic savings transfers on income days to ensure consistent saving'
-      ]
-    };
+      const completion = await this.client.chat.completions.create({
+        model: this.model,
+        messages,
+        temperature: 0.2,
+        max_tokens: 1000
+      });
+
+      return this.parseCashFlowAnalysis(completion.choices[0].message.content || '');
+    } catch (error) {
+      console.error('Error analyzing cash flow:', error);
+      throw new AzureOpenAIError('Failed to analyze cash flow');
+    }
   }
 
-  async getPremiumInsights(userId: string): Promise<string[]> {
-    // This would be a premium feature, providing more detailed insights
-    // For Phase 2, just return a message that this is a premium feature
-    return [
-      'Premium AI insights are not available in your current plan.',
-      'Upgrade to Premium to access detailed cash flow predictions, personalized savings strategies, and more.'
-    ];
+  async detectSavingsOpportunities(
+    transactions: Transaction[],
+    bills: Bill[]
+  ): Promise<any[]> {
+    try {
+      const prompt = this.createSavingsOpportunitiesPrompt(transactions, bills);
+      const messages: ChatCompletionMessageParam[] = [
+        {
+          role: 'system',
+          content: 'You are a cost optimization specialist.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ];
+
+      const completion = await this.client.chat.completions.create({
+        model: this.model,
+        messages,
+        temperature: 0.4,
+        max_tokens: 600
+      });
+
+      return this.parseSavingsOpportunities(completion.choices[0].message.content || '');
+    } catch (error) {
+      console.error('Error detecting savings opportunities:', error);
+      throw new AzureOpenAIError('Failed to detect savings opportunities');
+    }
+  }
+
+  private createBillRecommendationsPrompt(bills: Bill[], transactions: Transaction[]): string {
+    const billsData = bills.map(bill => ({
+      name: bill.name,
+      amount: bill.amount,
+      dueDate: bill.dueDate,
+      frequency: bill.frequency,
+    }));
+
+    const transactionsData = transactions.map(tx => ({
+      amount: tx.amount,
+      date: tx.date,
+      name: tx.name,
+      category: tx.category,
+    }));
+
+    return `Analyze the following bills and transactions to provide recommendations for optimizing bill payment schedules:
+
+Bills:
+${JSON.stringify(billsData, null, 2)}
+
+Recent Transactions:
+${JSON.stringify(transactionsData, null, 2)}
+
+Generate recommendations in the following JSON format:
+{
+  "recommendations": [
+    {
+      "billId": "<bill-id>",
+      "currentDueDate": "<current-date>",
+      "recommendedDueDate": "<recommended-date>",
+      "reason": "<detailed explanation>",
+      "savingsEstimate": <number>,
+      "confidenceScore": <number between 0 and 1>
+    }
+  ]
+}`;
+  }
+
+  private createCashFlowAnalysisPrompt(transactions: Transaction[], bills: Bill[]): string {
+    return `Analyze the following transactions and bills to provide a cash flow analysis:
+
+Transactions:
+${JSON.stringify(transactions, null, 2)}
+
+Bills:
+${JSON.stringify(bills, null, 2)}
+
+Generate analysis in the following JSON format:
+{
+  "incomeDays": ["YYYY-MM-DD"],
+  "highExpenseDays": ["YYYY-MM-DD"],
+  "lowBalanceDays": ["YYYY-MM-DD"],
+  "projectedBalances": [
+    {
+      "date": "YYYY-MM-DD",
+      "balance": <number>
+    }
+  ],
+  "recommendations": [
+    {
+      "type": "move_bill|reduce_expense|save",
+      "description": "<detailed recommendation>",
+      "impact": <number>
+    }
+  ]
+}`;
+  }
+
+  private createSavingsOpportunitiesPrompt(transactions: Transaction[], bills: Bill[]): string {
+    return `Analyze the following transactions and bills to identify savings opportunities:
+
+Transactions:
+${JSON.stringify(transactions, null, 2)}
+
+Bills:
+${JSON.stringify(bills, null, 2)}
+
+Generate opportunities in the following JSON format:
+{
+  "opportunities": [
+    {
+      "type": "duplicate_subscription|high_bill|unused_service",
+      "title": "<opportunity title>",
+      "description": "<detailed description>",
+      "potentialSavings": <number>,
+      "confidence": <number between 0 and 1>
+    }
+  ]
+}`;
+  }
+
+  private parseBillRecommendations(content: string): BillRecommendation[] {
+    try {
+      const data = JSON.parse(content);
+      return data.recommendations.map((rec: any) => ({
+        id: randomUUID(),
+        userId: 'system',
+        billId: rec.billId,
+        currentDueDate: rec.currentDueDate,
+        recommendedDueDate: rec.recommendedDueDate,
+        reason: rec.reason,
+        savingsEstimate: rec.savingsEstimate,
+        confidenceScore: rec.confidenceScore,
+        status: 'pending',
+        created_at: new Date(),
+        updated_at: new Date(),
+      }));
+    } catch (error) {
+      console.error('Error parsing bill recommendations:', error);
+      return [];
+    }
+  }
+
+  private parseCashFlowAnalysis(content: string): CashFlowAnalysis {
+    try {
+      const data = JSON.parse(content);
+      return {
+        id: randomUUID(),
+        userId: 'system',
+        period: 'monthly',
+        startDate: new Date().toISOString(),
+        endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        incomeDays: data.incomeDays,
+        highExpenseDays: data.highExpenseDays,
+        lowBalanceDays: data.lowBalanceDays,
+        projectedBalances: data.projectedBalances,
+        recommendations: data.recommendations,
+        created_at: new Date()
+      };
+    } catch (error) {
+      console.error('Error parsing cash flow analysis:', error);
+      throw new AzureOpenAIError('Failed to parse cash flow analysis');
+    }
+  }
+
+  private parseSavingsOpportunities(content: string): any[] {
+    try {
+      const data = JSON.parse(content);
+      return data.opportunities.map((opp: any) => ({
+        id: randomUUID(),
+        ...opp,
+        created_at: new Date()
+      }));
+    } catch (error) {
+      console.error('Error parsing savings opportunities:', error);
+      return [];
+    }
   }
 }
+
+export default AIService;

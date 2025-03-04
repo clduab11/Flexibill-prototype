@@ -1,28 +1,42 @@
+export type BillFrequency = 'once' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly';
+
 export interface Bill {
-  id?: string;
+  id: string;
   userId: string;
   name: string;
   amount: number;
   dueDate: string;
+  frequency: BillFrequency;
   category?: string;
-  frequency: 'monthly' | 'weekly' | 'yearly';
   autopay: boolean;
+  reminderDays: number[];
+  notes?: string;
+  created_at: Date;
+  updated_at: Date;
 }
 
-export interface DateChangeRequest {
-  id?: string;
+export interface BillReminder {
+  id: string;
   billId: string;
   userId: string;
-  currentDueDate: string;
-  requestedDueDate: string;
-  status: 'pending' | 'approved' | 'rejected';
-  createdAt?: string;
+  daysBeforeDue: number;
+  sent: boolean;
+  sentAt?: Date;
+  created_at: Date;
 }
 
+export type BillRecommendationStatus = 'pending' | 'accepted' | 'rejected' | 'implemented';
+
 export interface BillRecommendation {
+  id: string;
+  userId: string;
   billId: string;
   currentDueDate: string;
   recommendedDueDate: string;
   reason: string;
-  savingsEstimate?: number;
+  savingsEstimate: number;
+  confidenceScore: number;
+  status: BillRecommendationStatus;
+  created_at: Date;
+  updated_at: Date;
 }

@@ -1,148 +1,104 @@
-import { SupabaseClient } from '@supabase/supabase-js';
-import { Account, Transaction, PlaidLinkResponse } from '../../../shared/types';
+import { Configuration, PlaidApi, PlaidEnvironments } from 'plaid';
+import { ItemGetRequest } from 'plaid';
 
-// Note: In a real implementation, you would import the Plaid Node.js client
-// import { Configuration, PlaidApi, PlaidEnvironments } from 'plaid';
+const PLAID_CLIENT_ID = process.env.PLAID_CLIENT_ID;
+const PLAID_SECRET = process.env.PLAID_SECRET;
+const PLAID_ENV = process.env.PLAID_ENV as PlaidEnvironments || PlaidEnvironments.Sandbox;
 
-export class PlaidService {
-  private supabase: SupabaseClient;
-  // private plaidClient: PlaidApi;
+const configuration = new Configuration({
+  basePath: PlaidEnvironments[PLAID_ENV],
+  secret: PLAID_SECRET,
+  clientId: PLAID_CLIENT_ID,
+});
 
-  constructor(supabase: SupabaseClient) {
-    this.supabase = supabase;
+const client = new PlaidApi(configuration);
 
-    // In a real implementation, you would initialize the Plaid client
-    // const configuration = new Configuration({
-    //   basePath: PlaidEnvironments.sandbox, // or development/production
-    //   baseOptions: {
-    //     headers: {
-    //       'PLAID-CLIENT-ID': process.env.PLAID_CLIENT_ID,
-    //       'PLAID-SECRET': process.env.PLAID_SECRET,
-    //     },
-    //   },
-    // });
-    // this.plaidClient = new PlaidApi(configuration);
-  }
-
-  async createLinkToken(userId: string): Promise<string> {
-    // In a real implementation, you would call the Plaid API to create a link token
-    // const request = {
-    //   user: { client_user_id: userId },
-    //   client_name: 'FlexiBill',
-    //   products: ['transactions'],
-    //   language: 'en',
-    //   country_codes: ['US'],
-    // };
-    // 
-    // const response = await this.plaidClient.linkTokenCreate(request);
-    // return response.data.link_token;
-
-    // For Phase 1, return a placeholder token
-    return 'link-sandbox-placeholder-token';
-  }
-
-  async exchangePublicToken(publicToken: string, userId: string, metadata?: PlaidLinkResponse['metadata']): Promise<string> {
-    // In a real implementation, you would exchange the public token for an access token
-    // const response = await this.plaidClient.itemPublicTokenExchange({
-    //   public_token: publicToken,
-    // });
-    // 
-    // const accessToken = response.data.access_token;
-    // const itemId = response.data.item_id;
-    // 
-    // // Store the access token in the database
-    // await this.storeAccessToken(accessToken, userId);
-    // 
-    // return accessToken;
-
-    // For Phase 1, return a placeholder token
-    const accessToken = 'access-sandbox-placeholder-token';
-    await this.storeAccessToken(accessToken, userId, metadata);
-    return accessToken;
-  }
-
-  async storeAccessToken(accessToken: string, userId: string, metadata?: PlaidLinkResponse['metadata']): Promise<void> {
-    // In a real implementation, you would store the access token in the database
-    const institution = metadata?.institution?.name || 'Demo Bank';
-    const accounts = metadata?.accounts || [{ mask: '0000', type: 'checking' }];
-    
-    // Store each account
-    for (const account of accounts) {
-      const { error } = await this.supabase
-        .from('accounts')
-        .insert({
-          userId,
-          plaidAccessToken: accessToken,
-          institution,
-          mask: account.mask,
-          type: account.type
-        });
-
-      if (error) {
-        throw error;
-      }
-    }
-  }
-
-  async getAccounts(userId: string): Promise<Account[]> {
-    // In a real implementation, you would fetch accounts from the database
-    const { data, error } = await this.supabase
-      .from('accounts')
-      .select('*')
-      .eq('userId', userId);
-
-    if (error) {
-      throw error;
-    }
-
-    return data || [];
-  }
-
-  async syncTransactions(userId: string): Promise<Transaction[]> {
-    // In a real implementation, you would:
-    // 1. Get all access tokens for the user
-    // 2. Call Plaid's transactions/sync endpoint for each token
-    // 3. Store the transactions in the database
-    // 4. Return the new transactions
-
-    // For Phase 2, return mock transactions
-    const mockTransactions: Transaction[] = [
-      {
-        id: '1',
-        accountId: '1',
-        amount: 1500,
-        date: new Date().toISOString(),
-        category: 'Housing',
-        name: 'Rent Payment',
-        pending: false
+export async function createLinkToken() {
+  try {
+    console.log('Creating Plaid Link token...');
+    const createTokenResponse = await client.linkTokenCreate({
+      user: {
+        client_user_id: 'user-id',
       },
-      {
-        id: '2',
-        accountId: '1',
-        amount: 200,
-        date: new Date().toISOString(),
-        category: 'Utilities',
-        name: 'Electric Bill',
-        pending: false
-      },
-      {
-        id: '3',
-        accountId: '1',
-        amount: 100,
-        date: new Date().toISOString(),
-        category: 'Debt',
-        name: 'Credit Card Payment',
-        pending: false
-      }
-    ];
+      products: ['auth', 'transactions'],
+      client_name: 'FlexiBill',
+      country_codes: ['US'],
+      language: 'en',
+      webhook: 'https://webhook.site/43e7a7b8-9bb4-4891-8695-25f54974f944',
+      account_filters: [
+        {
+          depository: {
+            account_subtypes: ['checking', 'savings'],
+          },
+        },
+      ],
+    });
+    console.log('Plaid Link token created:', createTokenResponse.data);
+    return createTokenResponse.data.link_token;
+  } catch (error) {
+    console.error('Error creating Plaid Link token:', error);
+    return null;
+  }
+}
 
-    // Store mock transactions in the database
-    // In a real implementation, this would be more sophisticated
-    for (const transaction of mockTransactions) {
-      console.log(`Storing transaction: ${transaction.name}`);
-      // Actual database insertion would happen here
-    }
+export async function exchangePublicToken(publicToken: string, metadata: any) {
+  try {
+    console.log('Exchanging Plaid public token...', publicToken, metadata);
+    const tokenResponse = await client.itemPublicTokenExchange({
+      public_token: publicToken,
+    });
+    console.log('Plaid public token exchange result:', tokenResponse.data);
+    const accessToken = tokenResponse.data.access_token;
+    const itemID = tokenResponse.data.item_id;
+    console.log(`Access Token: ${accessToken}`);
+    console.log(`Item ID: ${itemID}`);
+    return { accessToken, itemID };
+  } catch (error) {
+    console.error('Error exchanging Plaid public token:', error);
+    return null;
+  }
+}
 
-    return mockTransactions;
+export async function getItem(accessToken: string) {
+  try {
+    const request: ItemGetRequest = {
+      access_token: accessToken,
+    };
+    const response = await client.itemGet(request);
+    console.log('Plaid Item details:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching Plaid Item details:', error);
+    return null;
+  }
+}
+
+export async function getAccounts(accessToken: string) {
+  try {
+    const accountsResponse = await client.accountsGet({
+      access_token: accessToken,
+    });
+    console.log('Plaid Accounts details:', accountsResponse.data);
+    return accountsResponse.data.accounts;
+  } catch (error) {
+    console.error('Error fetching Plaid Accounts details:', error);
+    return null;
+  }
+}
+
+export async function getTransactions(accessToken: string, startDate: string, endDate: string) {
+  try {
+    const transactionResponse = await client.transactionsGet({
+      access_token: accessToken,
+      start_date: startDate,
+      end_date: endDate,
+      count: 200,
+      offset: 0,
+    });
+    console.log('Plaid Transactions details:', transactionResponse.data);
+    return transactionResponse.data.transactions;
+  } catch (error) {
+    console.error('Error fetching Plaid Transactions details:', error);
+    return null;
   }
 }
