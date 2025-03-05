@@ -137,18 +137,33 @@ FlexiBill employs a modern tech stack designed for reliability, security, and sc
 
 ## 📊 Subscription Tiers
 
-FlexiBill offers flexible subscription options to meet different needs:
+FlexiBill offers innovative subscription options with our exclusive Data Dividend Program:
 
-| Feature | Free | Plus | Premium |
-|---------|------|------|---------|
-| Account Linking | Up to 2 | Unlimited | Unlimited |
-| Bill Tracking | Up to 5 | Unlimited | Unlimited |
-| AI Recommendations | Monthly | Weekly | Daily |
-| Data Retention | 3 months | 1 year | Unlimited |
-| Premium Support | ❌ | ✅ | Priority |
-| Price | Free | $4.99/mo | $9.99/mo |
+| Feature | Free | Essential | Premium | Data Partner |
+|---------|------|-----------|---------|--------------|
+| Account Linking | Up to 2 | Up to 5 | Unlimited | Unlimited |
+| Bill Tracking | Up to 5 | Up to 15 | Unlimited | Unlimited |
+| AI Recommendations | Monthly | Weekly | Daily | Real-time |
+| Data Retention | 3 months | 1 year | 2 years | Unlimited |
+| Premium Support | ❌ | ✅ | Priority | Concierge |
+| Base Price | Free | $12.99/mo | $19.99/mo | $24.99/mo |
+| Data Sharing Discounts | ❌ | ✅ | ✅ | ✅+ |
+| Max Potential Savings | $0 | Up to 45% | Up to 50% | Up to 55% |
 
-## 🔒 Security & Privacy
+### 🔓 Data Dividend Program
+
+Be rewarded for contributing to financial insights that help everyone. Our industry-first Data Dividend Program offers substantial discounts based on your data sharing preferences:
+
+- **Sharing Level Discounts:**
+  - Basic Sharing: 15% off your monthly subscription (was 10%)
+  - Full Sharing: 25% off your monthly subscription (was 20%)
+
+- **De-anonymization Bonuses:**
+  - Allow real amounts to be shared: Additional $3/month discount (was $2)
+  - Allow real dates to be shared: Additional $3/month discount (was $2)
+  - Allow custom category analysis: Additional $2/month discount
+ (NEW)
+## � Security & Privacy
 
 At FlexiBill, we take your financial data security extremely seriously:
 
