@@ -14,7 +14,7 @@ import { Bill } from './bill.entity';
 import { BillRecommendation } from './bill-recommendation.entity';
 import { Transaction } from './transaction.entity';
 
-export type Subscription = 'free' | 'premium' | 'enterprise';
+export type Subscription = 'free' | 'essential' | 'premium' | 'data_partner';
 export type SubscriptionStatus = 'active' | 'inactive' | 'pending' | 'cancelled';
 export type Feature = 'ai_recommendations' | 'bill_optimization' | 'advanced_analytics' | 'basic';
 
@@ -25,6 +25,11 @@ export interface UserData {
   lastName?: string;
   subscription: Subscription;
   subscriptionStatus: SubscriptionStatus;
+  subscriptionPricing?: {
+    basePrice: number;
+    currentPrice: number;
+    discountPercentage: number;
+  };
   plaidItemIds: string[];
   createdAt: Date;
   updatedAt: Date;
@@ -51,10 +56,25 @@ export class User implements UserData {
 
   @Column({
     type: 'enum',
-    enum: ['free', 'premium', 'enterprise'] as Subscription[],
+    enum: ['free', 'essential', 'premium', 'data_partner'] as Subscription[],
     default: 'free'
   })
   subscription!: Subscription;
+
+  @Column('jsonb', {
+    name: 'subscription_pricing',
+    default: {
+      basePrice: 0,
+      currentPrice: 0,
+      discountPercentage: 0
+    },
+    nullable: true
+  })
+  subscriptionPricing?: {
+    basePrice: number;
+    currentPrice: number;
+    discountPercentage: number;
+  };
 
   @Column({
     name: 'subscription_status',
@@ -63,6 +83,22 @@ export class User implements UserData {
     default: 'active'
   })
   subscriptionStatus!: SubscriptionStatus;
+
+  @Column('jsonb', {
+    name: 'data_sharing',
+    default: {
+      sharingLevel: 'none',
+      anonymizeAmount: true,
+      anonymizeDates: true,
+      customCategories: false
+    }
+  })
+  dataSharing!: {
+    sharingLevel: 'none' | 'basic' | 'full';
+    anonymizeAmount: boolean;
+    anonymizeDates: boolean;
+    customCategories: boolean;
+  };
 
   @Column('text', {
     name: 'plaid_item_ids',
@@ -114,8 +150,17 @@ export class User implements UserData {
     return this.subscription === 'premium' && this.hasActiveSubscription();
   }
 
+  isEssential(): boolean {
+    return this.subscription === 'essential' && this.hasActiveSubscription();
+  }
+
+  isDataPartner(): boolean {
+    return this.subscription === 'data_partner' && this.hasActiveSubscription();
+  }
+  
+  // For backward compatibility with existing code
   isEnterprise(): boolean {
-    return this.subscription === 'enterprise' && this.hasActiveSubscription();
+    return this.isDataPartner(); // data_partner is the new enterprise tier
   }
 
   canAccessFeature(feature: Feature): boolean {

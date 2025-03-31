@@ -2,7 +2,13 @@ export interface User {
   id: string;
   email: string;
   name: string;
-  subscription: 'free' | 'premium';
+  subscription: 'free' | 'essential' | 'premium' | 'data_partner';
+  // Base prices before data sharing discounts
+  subscriptionPricing: {
+    basePrice: number;
+    currentPrice: number; // After discounts
+    discountPercentage: number;
+  };
   dataSharing: {
     sharingLevel: 'none' | 'basic' | 'full';
     anonymizeAmount: boolean;
