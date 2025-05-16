@@ -1,6 +1,8 @@
 import express from 'express';
 import { authenticateUser } from '../middleware/authMiddleware';
 import { BillRecommendation, CashFlowAnalysis } from '@flexibill/shared/types';
+import AIService from '../services/AIService';
+import { DatabaseService } from '../db/DatabaseService';
 
 interface PremiumInsight {
   id: string;
@@ -22,6 +24,8 @@ interface SavingsOpportunity {
 }
 
 const router = express.Router();
+const aiService = new AIService();
+const db = DatabaseService.getInstance();
 
 // Get bill recommendations
 router.get('/bill-recommendations', authenticateUser, async (req, res) => {
@@ -31,8 +35,17 @@ router.get('/bill-recommendations', authenticateUser, async (req, res) => {
       return res.status(401).json({ error: 'User ID is required' });
     }
 
-    // TODO: Implement bill recommendations
-    const recommendations: BillRecommendation[] = [];
+    const { data: bills, error: billsError } = await db.bills().select('*').eq('user_id', userId);
+    if (billsError) {
+      throw new Error('Failed to fetch bills');
+    }
+
+    const { data: transactions, error: transactionsError } = await db.transactions().select('*').eq('user_id', userId);
+    if (transactionsError) {
+      throw new Error('Failed to fetch transactions');
+    }
+
+    const recommendations = await aiService.generateBillRecommendations(bills, transactions);
     res.json({ recommendations });
   } catch (error) {
     console.error('Error getting bill recommendations:', error);
@@ -48,21 +61,17 @@ router.get('/cash-flow', authenticateUser, async (req, res) => {
       return res.status(401).json({ error: 'User ID is required' });
     }
 
-    // TODO: Implement cash flow analysis
-    const analysis: CashFlowAnalysis = {
-      id: 'placeholder',
-      userId,
-      period: 'monthly',
-      startDate: new Date().toISOString(),
-      endDate: new Date().toISOString(),
-      incomeDays: [],
-      highExpenseDays: [],
-      lowBalanceDays: [],
-      projectedBalances: [],
-      recommendations: [],
-      created_at: new Date()
-    };
+    const { data: transactions, error: transactionsError } = await db.transactions().select('*').eq('user_id', userId);
+    if (transactionsError) {
+      throw new Error('Failed to fetch transactions');
+    }
 
+    const { data: bills, error: billsError } = await db.bills().select('*').eq('user_id', userId);
+    if (billsError) {
+      throw new Error('Failed to fetch bills');
+    }
+
+    const analysis = await aiService.analyzeCashFlow(transactions, bills);
     res.json({ analysis });
   } catch (error) {
     console.error('Error getting cash flow analysis:', error);
@@ -126,8 +135,17 @@ router.get('/savings-opportunities', authenticateUser, async (req, res) => {
       return res.status(401).json({ error: 'User ID is required' });
     }
 
-    // TODO: Implement savings opportunities detection
-    const opportunities: SavingsOpportunity[] = [];
+    const { data: transactions, error: transactionsError } = await db.transactions().select('*').eq('user_id', userId);
+    if (transactionsError) {
+      throw new Error('Failed to fetch transactions');
+    }
+
+    const { data: bills, error: billsError } = await db.bills().select('*').eq('user_id', userId);
+    if (billsError) {
+      throw new Error('Failed to fetch bills');
+    }
+
+    const opportunities = await aiService.detectSavingsOpportunities(transactions, bills);
     res.json({ opportunities });
   } catch (error) {
     console.error('Error getting savings opportunities:', error);

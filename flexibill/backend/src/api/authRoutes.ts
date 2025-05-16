@@ -129,26 +129,38 @@ router.post(
  * @desc Refresh the access token
  * @access Public
  */
-router.post('/refresh-token', async (req: Request, res: Response) => {
-  try {
-    const { refreshToken } = req.body;
+router.post(
+  '/refresh-token',
+  [
+    body('refreshToken').notEmpty().withMessage('Refresh token is required'),
+  ],
+  async (req: Request, res: Response) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return APIResponse.badRequest(
+          res, 
+          'Validation error', 
+          'VALIDATION_ERROR', 
+          errors.array()
+        );
+      }
 
-    if (!refreshToken) {
-      return APIResponse.badRequest(res, 'Refresh token is required');
+      const { refreshToken } = req.body;
+
+      const session = await authService.refreshToken();
+
+      return APIResponse.success(res, {
+        token: session.access_token,
+        refreshToken: session.refresh_token,
+        expiresAt: session.expires_at,
+      });
+    } catch (error: any) {
+      console.error('Token refresh error:', error);
+      return APIResponse.unauthorized(res, 'Failed to refresh token');
     }
-
-    const session = await authService.refreshToken();
-
-    return APIResponse.success(res, {
-      token: session.access_token,
-      refreshToken: session.refresh_token,
-      expiresAt: session.expires_at,
-    });
-  } catch (error: any) {
-    console.error('Token refresh error:', error);
-    return APIResponse.unauthorized(res, 'Failed to refresh token');
   }
-});
+);
 
 /**
  * @route POST /api/auth/forgot-password

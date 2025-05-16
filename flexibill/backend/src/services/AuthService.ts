@@ -160,8 +160,8 @@ export class AuthService {
    * Refresh the session token
    * @returns New session data
    */
-  async refreshToken(): Promise<{ access_token: string; refresh_token: string; expires_at: number }> {
-    const { data, error } = await this.supabase.auth.refreshSession();
+  async refreshToken(refreshToken: string): Promise<{ access_token: string; refresh_token: string; expires_at: number }> {
+    const { data, error } = await this.supabase.auth.refreshSession({ refresh_token: refreshToken });
 
     if (error) {
       throw error;
