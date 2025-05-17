@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Text, FlatList, View, StyleSheet, Button, Modal, TextInput, Alert, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Bill } from '../../../shared/types';
+import { VictoryPie, VictoryChart, VictoryBar, VictoryTheme } from 'victory-native';
 
 // Mock data for bills (replace with actual data from backend)
 const mockBills: Bill[] = [
@@ -73,6 +74,25 @@ const BillsScreen: React.FC<BillsScreenProps> = ({ navigation }) => {
     Alert.alert("Coming Soon", "Add bill functionality will be available in the next update.");
   };
 
+  const calculateTotalAmount = () => {
+    return bills.reduce((total, bill) => total + bill.amount, 0);
+  };
+
+  const calculateCategoryData = () => {
+    const categoryData: { [key: string]: number } = {};
+    bills.forEach(bill => {
+      if (categoryData[bill.category]) {
+        categoryData[bill.category] += bill.amount;
+      } else {
+        categoryData[bill.category] = bill.amount;
+      }
+    });
+    return Object.keys(categoryData).map(category => ({
+      x: category,
+      y: categoryData[category]
+    }));
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -97,6 +117,17 @@ const BillsScreen: React.FC<BillsScreenProps> = ({ navigation }) => {
           </View>
         )}
       />
+
+      <View style={styles.chartContainer}>
+        <Text style={styles.chartTitle}>Total Amount: ${calculateTotalAmount()}</Text>
+        <VictoryPie
+          data={calculateCategoryData()}
+          colorScale={["tomato", "orange", "gold", "cyan", "navy" ]}
+          innerRadius={50}
+          labelRadius={75}
+          style={{ labels: { fontSize: 12, fill: "white" } }}
+        />
+      </View>
 
       <Modal
         animationType="slide"
@@ -212,6 +243,15 @@ const styles = StyleSheet.create({
   backButtonText: {
     color: '#333',
     fontWeight: 'bold',
+  },
+  chartContainer: {
+    marginTop: 16,
+    alignItems: 'center',
+  },
+  chartTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 8,
   },
 });
 

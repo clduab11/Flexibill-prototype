@@ -161,4 +161,42 @@ router.post('/categorize',
   }
 );
 
+// Generate transaction summaries and analysis
+router.get('/summaries',
+  authenticateUser,
+  async (req: Request, res: Response) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return APIResponse.unauthorized(res);
+      }
+
+      const summaries = await transactionService.generateTransactionSummaries(userId);
+      return APIResponse.success(res, { summaries });
+    } catch (error) {
+      console.error('Error generating transaction summaries:', error);
+      return APIResponse.internalError(res);
+    }
+  }
+);
+
+// Analyze transactions
+router.get('/analysis',
+  authenticateUser,
+  async (req: Request, res: Response) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return APIResponse.unauthorized(res);
+      }
+
+      const analysis = await transactionService.analyzeTransactions(userId);
+      return APIResponse.success(res, { analysis });
+    } catch (error) {
+      console.error('Error analyzing transactions:', error);
+      return APIResponse.internalError(res);
+    }
+  }
+);
+
 export default router;

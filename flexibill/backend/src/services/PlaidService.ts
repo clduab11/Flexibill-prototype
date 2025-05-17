@@ -4,7 +4,11 @@ import {
   PlaidEnvironments, 
   Products, 
   CountryCode,
-  DepositoryAccountSubtype
+  DepositoryAccountSubtype,
+  WebhookType,
+  WebhookCode,
+  TransactionsSyncRequest,
+  TransactionsSyncResponse
 } from 'plaid';
 import { ItemGetRequest, TransactionsGetRequest } from 'plaid';
 import { DatabaseService } from '../db/DatabaseService';
@@ -266,6 +270,71 @@ export async function getUserAccounts(userId: string) {
     return allAccounts;
   } catch (error) {
     console.error(`Error fetching accounts for user ${userId}:`, error);
+    throw error;
+  }
+}
+
+export async function syncTransactions(itemId: string, startDate: string, endDate: string) {
+  try {
+    const db = DatabaseService.getInstance();
+    const { data, error } = await db.getClient()
+      .from('plaid_items')
+      .select('access_token')
+      .eq('item_id', itemId)
+      .single();
+
+    if (error || !data) {
+      throw new NotFoundError(`Failed to retrieve access token for item ${itemId}`);
+    }
+
+    const accessToken = decrypt(data.access_token);
+
+    const request: TransactionsSyncRequest = {
+      access_token: accessToken,
+      start_date: startDate,
+      end_date: endDate,
+    };
+
+    const response: TransactionsSyncResponse = await client.transactionsSync(request);
+    const transactions = response.data.added;
+
+    // Store transactions in the database
+    const { error: insertError } = await db.getClient().from('transactions').insert(transactions);
+    if (insertError) {
+      throw new PlaidError(`Failed to store transactions: ${insertError.message}`);
+    }
+
+    return transactions;
+  } catch (error) {
+    console.error('Error syncing transactions:', error);
+    throw error;
+  }
+}
+
+export async function handlePlaidWebhook(event: any) {
+  try {
+    const db = DatabaseService.getInstance();
+
+    switch (event.webhook_type) {
+      case WebhookType.TRANSACTIONS:
+        switch (event.webhook_code) {
+          case WebhookCode.INITIAL_UPDATE:
+          case WebhookCode.HISTORICAL_UPDATE:
+          case WebhookCode.DEFAULT_UPDATE:
+            const itemId = event.item_id;
+            const startDate = event.start_date;
+            const endDate = event.end_date;
+            await syncTransactions(itemId, startDate, endDate);
+            break;
+          default:
+            console.warn(`Unhandled webhook code: ${event.webhook_code}`);
+        }
+        break;
+      default:
+        console.warn(`Unhandled webhook type: ${event.webhook_type}`);
+    }
+  } catch (error) {
+    console.error('Error handling Plaid webhook:', error);
     throw error;
   }
 }

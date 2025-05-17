@@ -148,7 +148,7 @@ router.post(
 
       const { refreshToken } = req.body;
 
-      const session = await authService.refreshToken();
+      const session = await authService.refreshToken(refreshToken);
 
       return APIResponse.success(res, {
         token: session.access_token,

@@ -115,6 +115,86 @@ class TransactionService {
     return categorizedTransactions;
   }
 
+  async generateTransactionSummaries(userId: string): Promise<TransactionSummary[]> {
+    const transactions = await this.db.transactions.findByUserId(userId);
+    const summaries: TransactionSummary[] = [];
+
+    const merchantStats: Record<string, MerchantStats> = {};
+
+    transactions.forEach(tx => {
+      const merchant = tx.merchantName || 'Unknown';
+      if (!merchantStats[merchant]) {
+        merchantStats[merchant] = {
+          totalSpent: 0,
+          frequency: 0,
+          transactions: [],
+          categories: new Set()
+        };
+      }
+
+      merchantStats[merchant].totalSpent += tx.amount;
+      merchantStats[merchant].frequency += 1;
+      merchantStats[merchant].transactions.push(tx);
+      tx.category.forEach(cat => merchantStats[merchant].categories.add(cat));
+    });
+
+    for (const [merchant, stats] of Object.entries(merchantStats)) {
+      summaries.push({
+        merchant,
+        totalSpent: stats.totalSpent,
+        frequency: stats.frequency,
+        categories: Array.from(stats.categories),
+        averageSpent: stats.totalSpent / stats.frequency
+      });
+    }
+
+    return summaries;
+  }
+
+  async analyzeTransactions(userId: string): Promise<TransactionAnalysis> {
+    const transactions = await this.db.transactions.findByUserId(userId);
+    const analysis: TransactionAnalysis = {
+      recurringChanges: [],
+      merchantSuggestions: []
+    };
+
+    const previousTransactions = await this.db.transactions.findByUserId(userId, { limit: 100, offset: 100 });
+
+    analysis.recurringChanges = this.detectRecurringChanges(transactions, previousTransactions);
+
+    const merchantStats: Record<string, MerchantStats> = {};
+
+    transactions.forEach(tx => {
+      const merchant = tx.merchantName || 'Unknown';
+      if (!merchantStats[merchant]) {
+        merchantStats[merchant] = {
+          totalSpent: 0,
+          frequency: 0,
+          transactions: [],
+          categories: new Set()
+        };
+      }
+
+      merchantStats[merchant].totalSpent += tx.amount;
+      merchantStats[merchant].frequency += 1;
+      merchantStats[merchant].transactions.push(tx);
+      tx.category.forEach(cat => merchantStats[merchant].categories.add(cat));
+    });
+
+    for (const [merchant, stats] of Object.entries(merchantStats)) {
+      if (stats.totalSpent > 100) {
+        analysis.merchantSuggestions.push({
+          type: 'alternative',
+          merchant,
+          suggestion: `Consider switching to a cheaper alternative for ${merchant}`,
+          potentialSavings: stats.totalSpent * 0.1
+        });
+      }
+    }
+
+    return analysis;
+  }
+
   private matchesSearchTerm(transaction: Transaction, searchTerm: string): boolean {
     const searchLower = searchTerm.toLowerCase();
     return (

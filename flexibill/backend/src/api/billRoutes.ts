@@ -201,4 +201,52 @@ router.post('/optimize',
   }
 );
 
+// Request due date change
+router.post('/:id/request-due-date-change',
+  authenticateUser,
+  validate([param('id').isUUID(), body('newDueDate').isISO8601().withMessage('Invalid due date format')]),
+  async (req: Request, res: Response) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return APIResponse.unauthorized(res);
+      }
+
+      const { id } = req.params;
+      const { newDueDate } = req.body;
+
+      const updatedBill = await billService.requestDueDateChange(userId, id, newDueDate);
+      return APIResponse.success(res, { bill: updatedBill });
+    } catch (error) {
+      if (error instanceof NotFoundError) {
+        return APIResponse.notFound(res, error.message);
+      }
+      if (error instanceof ValidationError) {
+        return APIResponse.badRequest(res, error.message);
+      }
+      console.error('Error requesting due date change:', error);
+      return APIResponse.internalError(res);
+    }
+  }
+);
+
+// Detect bills from transactions
+router.post('/detect-from-transactions',
+  authenticateUser,
+  async (req: Request, res: Response) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return APIResponse.unauthorized(res);
+      }
+
+      const detectedBills = await billService.detectBillsFromTransactions(userId);
+      return APIResponse.success(res, { bills: detectedBills });
+    } catch (error) {
+      console.error('Error detecting bills from transactions:', error);
+      return APIResponse.internalError(res);
+    }
+  }
+);
+
 export default router;

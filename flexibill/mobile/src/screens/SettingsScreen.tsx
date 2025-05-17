@@ -2,13 +2,13 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, Switch, TouchableOpacity, Alert, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { DataSharingPreferences, SharingLevel } from '../../../shared/types';
+import ApiService from '../services/ApiService';
 
 interface SettingsScreenProps {
   navigation: any;
 }
 
 const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
-  // Mock user data for Phase 1
   const [subscription, setSubscription] = useState<'free' | 'premium'>('free');
   const [dataSharing, setDataSharing] = useState<DataSharingPreferences>({
     sharingLevel: 'none',
@@ -22,7 +22,6 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
       sharingLevel: level
     });
 
-    // Show discount message if user enables data sharing
     if (level !== 'none' && subscription === 'free') {
       Alert.alert(
         "Discount Available",
@@ -43,9 +42,14 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
         { text: "Cancel", style: "cancel" },
         { 
           text: "Upgrade", 
-          onPress: () => {
-            setSubscription('premium');
-            Alert.alert("Success", "You've been upgraded to Premium!");
+          onPress: async () => {
+            const response = await ApiService.post('/subscription/upgrade', { plan: 'premium' });
+            if (response.success) {
+              setSubscription('premium');
+              Alert.alert("Success", "You've been upgraded to Premium!");
+            } else {
+              Alert.alert("Error", "Failed to upgrade. Please try again.");
+            }
           }
         }
       ]
@@ -60,8 +64,8 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
         { text: "Cancel", style: "cancel" },
         { 
           text: "Logout", 
-          onPress: () => {
-            // In a real implementation, this would clear auth tokens
+          onPress: async () => {
+            await ApiService.logout();
             navigation.reset({
               index: 0,
               routes: [{ name: 'Auth' }],

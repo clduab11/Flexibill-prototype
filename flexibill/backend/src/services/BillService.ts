@@ -163,6 +163,45 @@ class BillService {
     const bills = await this.getUserBills(userId);
     return bills.filter(bill => new Date(bill.dueDate) < today);
   }
+
+  async requestDueDateChange(userId: string, billId: string, newDueDate: string): Promise<Bill> {
+    const bill = await this.getBill(userId, billId);
+    bill.dueDate = newDueDate;
+    bill.updated_at = new Date();
+    return await this.db.bills.update(billId, bill);
+  }
+
+  async detectBillsFromTransactions(userId: string): Promise<Bill[]> {
+    const transactions = await this.db.transactions.findByUserId(userId);
+    const detectedBills: Bill[] = [];
+
+    for (const transaction of transactions) {
+      if (this.isBillTransaction(transaction)) {
+        const bill: Bill = {
+          id: randomUUID(),
+          userId,
+          name: transaction.name,
+          amount: transaction.amount,
+          dueDate: transaction.date,
+          frequency: 'monthly',
+          category: transaction.category[0],
+          autopay: false,
+          reminderDays: [1],
+          created_at: new Date(),
+          updated_at: new Date()
+        };
+        detectedBills.push(bill);
+      }
+    }
+
+    await this.db.bills.bulkCreate(detectedBills);
+    return detectedBills;
+  }
+
+  private isBillTransaction(transaction: Transaction): boolean {
+    const billKeywords = ['bill', 'payment', 'invoice', 'subscription'];
+    return billKeywords.some(keyword => transaction.name.toLowerCase().includes(keyword));
+  }
 }
 
 export default BillService;

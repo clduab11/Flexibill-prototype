@@ -67,6 +67,42 @@ class PlaidService {
     await new Promise(resolve => setTimeout(resolve, 1000));
     return true;
   }
+
+  static async getInstitutions(): Promise<any> {
+    console.log('Fetching institutions...');
+    try {
+      const response = await ApiService.get('/plaid/institutions');
+      console.log('Institutions fetched:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching institutions:', error);
+      throw error;
+    }
+  }
+
+  static async filterAccounts(accounts: any[], filter: (account: any) => boolean): Promise<any[]> {
+    console.log('Filtering accounts...');
+    return accounts.filter(filter);
+  }
+
+  static async handleMultiFactorAuthentication(publicToken: string, metadata: PlaidLinkMetadata): Promise<boolean> {
+    console.log('Handling multi-factor authentication...');
+    try {
+      const response = await ApiService.post<ExchangeTokenResponse>('/plaid/mfa', {
+        publicToken,
+        metadata: {
+          institution: metadata.institution,
+          accounts: metadata.accounts,
+          link_session_id: metadata.linkSessionId
+        }
+      });
+      console.log('MFA result:', response.data);
+      return response.data?.success === true;
+    } catch (error) {
+      console.error('Error handling MFA:', error);
+      throw error;
+    }
+  }
 }
 
 export default PlaidService;

@@ -1,6 +1,6 @@
 import express, { Request, Response } from 'express';
 const router = express.Router();
-import { createLinkToken, exchangePublicToken, getUserAccounts, getItem } from '../services/PlaidService';
+import { createLinkToken, exchangePublicToken, getUserAccounts, getItem, syncTransactions, handlePlaidWebhook } from '../services/PlaidService';
 import { authenticateUser } from '../middleware/authMiddleware';
 import { APIResponse } from '../utils/response';
 import { DatabaseService } from '../db/DatabaseService';
@@ -120,6 +120,56 @@ router.get('/item/:itemId', async (req: Request, res: Response) => {
       res,
       'Failed to retrieve item details',
       'PLAID_ITEM_ERROR',
+      500,
+      error.message
+    );
+  }
+});
+
+// Add route to sync transactions
+router.post('/sync-transactions', async (req: Request, res: Response) => {
+  try {
+    if (!req.user) {
+      return APIResponse.unauthorized(res, 'User authentication required');
+    }
+
+    const { itemId, startDate, endDate } = req.body;
+
+    if (!itemId || !startDate || !endDate) {
+      return APIResponse.badRequest(res, 'Item ID, start date, and end date are required');
+    }
+
+    console.log(`Syncing transactions for item ${itemId} and user ${req.user.id}...`);
+    const transactions = await syncTransactions(itemId, startDate, endDate);
+
+    return APIResponse.success(res, { transactions });
+  } catch (error: any) {
+    console.error('Error syncing transactions:', error);
+    return APIResponse.error(
+      res,
+      'Failed to sync transactions',
+      'PLAID_SYNC_ERROR',
+      500,
+      error.message
+    );
+  }
+});
+
+// Add route to handle Plaid webhooks
+router.post('/webhook', async (req: Request, res: Response) => {
+  try {
+    const webhookEvent = req.body;
+
+    console.log('Received Plaid webhook event:', webhookEvent);
+    await handlePlaidWebhook(webhookEvent);
+
+    return APIResponse.success(res, { message: 'Webhook event processed successfully' });
+  } catch (error: any) {
+    console.error('Error processing Plaid webhook event:', error);
+    return APIResponse.error(
+      res,
+      'Failed to process webhook event',
+      'PLAID_WEBHOOK_ERROR',
       500,
       error.message
     );

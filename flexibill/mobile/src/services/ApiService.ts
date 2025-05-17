@@ -7,6 +7,8 @@ const API_BASE_URL = 'http://localhost:3000/api';
 const AUTH_TOKEN_KEY = 'auth_token';
 const REFRESH_TOKEN_KEY = 'refresh_token';
 const USER_DATA_KEY = 'user_data';
+const BILLS_KEY = 'bills';
+const RECOMMENDATIONS_KEY = 'recommendations';
 
 // Response types
 export interface ApiResponse<T = any> {
@@ -296,6 +298,43 @@ class ApiService {
 
   public isAuthenticated(): boolean {
     return !!this.token;
+  }
+
+  // Local storage methods for offline access
+  public async saveBills(bills: any[]): Promise<void> {
+    try {
+      await AsyncStorage.setItem(BILLS_KEY, JSON.stringify(bills));
+    } catch (error) {
+      console.error('Error saving bills to storage:', error);
+    }
+  }
+
+  public async getBills(): Promise<any[] | null> {
+    try {
+      const billsData = await AsyncStorage.getItem(BILLS_KEY);
+      return billsData ? JSON.parse(billsData) : null;
+    } catch (error) {
+      console.error('Error getting bills from storage:', error);
+      return null;
+    }
+  }
+
+  public async saveRecommendations(recommendations: any[]): Promise<void> {
+    try {
+      await AsyncStorage.setItem(RECOMMENDATIONS_KEY, JSON.stringify(recommendations));
+    } catch (error) {
+      console.error('Error saving recommendations to storage:', error);
+    }
+  }
+
+  public async getRecommendations(): Promise<any[] | null> {
+    try {
+      const recommendationsData = await AsyncStorage.getItem(RECOMMENDATIONS_KEY);
+      return recommendationsData ? JSON.parse(recommendationsData) : null;
+    } catch (error) {
+      console.error('Error getting recommendations from storage:', error);
+      return null;
+    }
   }
 }
 
