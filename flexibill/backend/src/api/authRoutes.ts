@@ -319,21 +319,34 @@ router.put(
 
 /**
  * @route POST /api/auth/logout
- * @desc Logout a user
+ * @desc Logout a user and invalidate their tokens
  * @access Private
  */
 router.post('/logout', authenticateUser, async (req: Request, res: Response) => {
   try {
-    await authService.logout();
-    return APIResponse.success(res, { 
-      message: 'Logged out successfully' 
-    });
+    const { user, token, refreshToken } = req;
+    
+    if (!user) {
+      return APIResponse.unauthorized(res, 'User not authenticated');
+    }
+    
+    const currentRefreshToken = refreshToken || req.body.refreshToken;
+    
+    if (!currentRefreshToken) {
+      return APIResponse.badRequest(res, 'Refresh token is required');
+    }
+    
+    await authService.logout(currentRefreshToken, user.id);
+    
+    return APIResponse.success(res, { message: 'Logout successful' });
   } catch (error: any) {
     console.error('Logout error:', error);
-    return APIResponse.internalError(
+    return APIResponse.error(
       res, 
-      'Failed to logout', 
-      'LOGOUT_ERROR'
+      'Logout failed', 
+      'LOGOUT_ERROR', 
+      500, 
+      error.message
     );
   }
 });

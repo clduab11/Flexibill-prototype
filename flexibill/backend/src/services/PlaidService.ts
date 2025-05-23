@@ -14,11 +14,14 @@ import { ItemGetRequest, TransactionsGetRequest } from 'plaid';
 import { DatabaseService } from '../db/DatabaseService';
 import { PlaidError, NotFoundError } from '../utils/errors';
 import { encrypt, decrypt } from '../utils/encryption';
+import { executeWithPlaidCircuitBreaker } from '../utils/PlaidCircuitBreaker';
+import { withRetry, isTransientError } from '../utils/RetryHelper';
 
 const PLAID_CLIENT_ID = process.env.PLAID_CLIENT_ID;
 const PLAID_SECRET = process.env.PLAID_SECRET;
 const PLAID_ENV = process.env.PLAID_ENV || 'sandbox';
 const PLAID_WEBHOOK_URL = process.env.PLAID_WEBHOOK_URL;
+const MAX_RETRIES = 3;
 
 const configuration = new Configuration({
   basePath: PlaidEnvironments[PLAID_ENV],
@@ -41,25 +44,38 @@ export async function createLinkToken(userId: string) {
       throw new PlaidError("User ID is required to create a link token");
     }
     
-    const createTokenResponse = await client.linkTokenCreate({
-      user: {
-        client_user_id: userId, // Use the actual user's ID
-      },
-      products: ['auth', 'transactions'] as Products[],
-      client_name: 'FlexiBill',
-      country_codes: ['US'] as CountryCode[],
-      language: 'en',
-      // Use environment variable for webhook URL
-      webhook: PLAID_WEBHOOK_URL,
-      account_filters: {
-        depository: {
-          account_subtypes: [
-            DepositoryAccountSubtype.Checking,
-            DepositoryAccountSubtype.Savings
-          ],
-        },
-      },
-    });
+    // Use circuit breaker pattern with retries for the Plaid API call
+    const createTokenResponse = await executeWithPlaidCircuitBreaker(
+      'linkTokenCreate',
+      async () => {
+        return withRetry(
+          async () => {
+            return await client.linkTokenCreate({
+              user: {
+                client_user_id: userId,
+              },
+              products: ['auth', 'transactions'] as Products[],
+              client_name: 'FlexiBill',
+              country_codes: ['US'] as CountryCode[],
+              language: 'en',
+              webhook: PLAID_WEBHOOK_URL,
+              account_filters: {
+                depository: {
+                  account_subtypes: [
+                    DepositoryAccountSubtype.Checking,
+                    DepositoryAccountSubtype.Savings
+                  ],
+                },
+              },
+            });
+          }, 
+          { 
+            maxRetries: MAX_RETRIES, 
+            retryCondition: isTransientError 
+          }
+        );
+      }
+    );
     
     if (!createTokenResponse.data || !createTokenResponse.data.link_token) {
       throw new PlaidError("Failed to create link token: Invalid response from Plaid");
@@ -69,7 +85,13 @@ export async function createLinkToken(userId: string) {
     return createTokenResponse.data.link_token;
   } catch (error) {
     console.error('Error creating Plaid Link token:', error);
-    throw error; // Re-throw instead of returning null
+    
+    // Provide more context in the error message
+    if (error instanceof Error) {
+      throw new PlaidError(`Failed to create Plaid link token: ${error.message}`);
+    }
+    
+    throw new PlaidError('Failed to create Plaid link token due to an unknown error');
   }
 }
 
@@ -86,9 +108,23 @@ export async function exchangePublicToken(publicToken: string, metadata: any, us
       throw new PlaidError("User ID is required");
     }
     
-    const tokenResponse = await client.itemPublicTokenExchange({
-      public_token: publicToken,
-    });
+    // Use circuit breaker pattern with retries for the Plaid API call
+    const tokenResponse = await executeWithPlaidCircuitBreaker(
+      'itemPublicTokenExchange',
+      async () => {
+        return withRetry(
+          async () => {
+            return await client.itemPublicTokenExchange({
+              public_token: publicToken,
+            });
+          },
+          { 
+            maxRetries: MAX_RETRIES, 
+            retryCondition: isTransientError 
+          }
+        );
+      }
+    );
     
     if (!tokenResponse.data || !tokenResponse.data.access_token) {
       throw new PlaidError("Failed to exchange public token: Invalid response from Plaid");
@@ -166,12 +202,34 @@ export async function getItem(itemId: string) {
     const request: ItemGetRequest = {
       access_token: accessToken,
     };
-    const response = await client.itemGet(request);
+    
+    // Use circuit breaker pattern with retries for the Plaid API call
+    const response = await executeWithPlaidCircuitBreaker(
+      'itemGet',
+      async () => {
+        return withRetry(
+          async () => {
+            return await client.itemGet(request);
+          },
+          { 
+            maxRetries: MAX_RETRIES, 
+            retryCondition: isTransientError 
+          }
+        );
+      }
+    );
+    
     console.log('Plaid Item details:', response.data);
     return response.data;
   } catch (error) {
     console.error('Error fetching Plaid Item details:', error);
-    throw error;
+    
+    // Enhanced error handling with more context
+    if (error instanceof Error) {
+      throw new PlaidError(`Failed to get Plaid item details: ${error.message}`);
+    }
+    
+    throw new PlaidError('Failed to get Plaid item details due to an unknown error');
   }
 }
 
@@ -192,14 +250,35 @@ export async function getAccounts(itemId: string) {
     // Decrypt the access token
     const accessToken = decrypt(data.access_token);
     
-    const accountsResponse = await client.accountsGet({
-      access_token: accessToken,
-    });
+    // Use circuit breaker pattern with retries for the Plaid API call
+    const accountsResponse = await executeWithPlaidCircuitBreaker(
+      'accountsGet',
+      async () => {
+        return withRetry(
+          async () => {
+            return await client.accountsGet({
+              access_token: accessToken,
+            });
+          },
+          { 
+            maxRetries: MAX_RETRIES, 
+            retryCondition: isTransientError 
+          }
+        );
+      }
+    );
+    
     console.log('Plaid Accounts details:', accountsResponse.data);
     return accountsResponse.data.accounts;
   } catch (error) {
     console.error('Error fetching Plaid Accounts details:', error);
-    throw error;
+    
+    // Enhanced error handling with more context
+    if (error instanceof Error) {
+      throw new PlaidError(`Failed to get Plaid accounts: ${error.message}`);
+    }
+    
+    throw new PlaidError('Failed to get Plaid accounts due to an unknown error');
   }
 }
 
@@ -230,12 +309,31 @@ export async function getTransactions(itemId: string, startDate: string, endDate
       },
     };
     
-    const transactionResponse = await client.transactionsGet(request);
+    // Use circuit breaker pattern with retries for the Plaid API call
+    const transactionResponse = await executeWithPlaidCircuitBreaker(
+      `transactions-${itemId}-${startDate}-${endDate}`,
+      async () => {
+        return withRetry(
+          async () => {
+            return await client.transactionsGet(request);
+          },
+          MAX_RETRIES,
+          isTransientError
+        );
+      }
+    );
+    
     console.log('Plaid Transactions details:', transactionResponse.data);
     return transactionResponse.data.transactions;
   } catch (error) {
     console.error('Error fetching Plaid Transactions details:', error);
-    throw error;
+    
+    // Enhanced error handling with more context
+    if (error instanceof Error) {
+      throw new PlaidError(`Failed to get Plaid transactions: ${error.message}`);
+    }
+    
+    throw new PlaidError('Failed to get Plaid transactions due to an unknown error');
   }
 }
 

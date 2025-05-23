@@ -9,6 +9,8 @@ declare global {
     interface Request {
       user?: User;
       token?: string;
+      refreshToken?: string;
+      tokenFamily?: string;
     }
   }
 }
@@ -31,16 +33,71 @@ export const authenticateUser = async (req: Request, res: Response, next: NextFu
     // Extract the token
     const token = authHeader.split(' ')[1];
     
+    // Get the refresh token if provided
+    const refreshToken = req.headers['x-refresh-token'] as string;
+    
     // Get instances of services
     const db = DatabaseService.getInstance();
     const authService = new AuthService(db.getClient());
     
     // Validate the token
-    const isValid = await authService.validateSession(token);
-    if (!isValid) {
+    const tokenValidationResult = await authService.validateSession(token);
+    if (!tokenValidationResult.isValid) {
+      // If token is expired and refresh token is provided, try to refresh
+      if (tokenValidationResult.isExpired && refreshToken) {
+        try {
+          const newSession = await authService.refreshToken(refreshToken);
+          
+          // Return new token in response headers
+          res.setHeader('X-New-Access-Token', newSession.access_token);
+          res.setHeader('X-New-Refresh-Token', newSession.refresh_token);
+          
+          // Continue with the new token
+          const { data: { user: supabaseUser }, error } = await db.getClient().auth.getUser(newSession.access_token);
+          
+          if (error || !supabaseUser) {
+            return res.status(401).json({
+              success: false,
+              message: 'Failed to retrieve user information after token refresh.',
+              data: null
+            });
+          }
+          
+          // Fetch the complete user data
+          const { data: userData, error: userError } = await db.users()
+            .select('*')
+            .eq('id', supabaseUser.id)
+            .single();
+            
+          if (userError || !userData) {
+            return res.status(401).json({
+              success: false,
+              message: 'User not found in the database.',
+              data: null
+            });
+          }
+          
+          // Attach user and new tokens to request
+          req.user = userData as User;
+          req.token = newSession.access_token;
+          req.refreshToken = newSession.refresh_token;
+          next();
+          return;
+        } catch (refreshError) {
+          console.error('Token refresh error:', refreshError);
+          return res.status(401).json({
+            success: false,
+            message: 'Your session has expired. Please login again.',
+            data: null
+          });
+        }
+      }
+      
       return res.status(401).json({
         success: false,
-        message: 'Invalid or expired token. Please login again.',
+        message: tokenValidationResult.isExpired 
+          ? 'Your session has expired. Please login again.' 
+          : 'Invalid token. Please login again.',
         data: null
       });
     }

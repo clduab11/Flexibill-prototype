@@ -1,6 +1,7 @@
 import { SupabaseClient, User as SupabaseUser } from '@supabase/supabase-js';
 import { User, UserData, Subscription, SubscriptionStatus } from '../entities/user.entity';
 import { DatabaseService } from '../db/DatabaseService';
+import { TokenService } from './TokenService';
 
 interface UserRegistrationData {
   email: string;
@@ -25,13 +26,22 @@ interface AuthResult {
   };
 }
 
+interface TokenValidationResult {
+  isValid: boolean;
+  isExpired: boolean;
+  userId?: string;
+  error?: string;
+}
+
 export class AuthService {
   private supabase: SupabaseClient;
   private db: DatabaseService;
+  private tokenService: TokenService;
 
   constructor(supabase: SupabaseClient) {
     this.supabase = supabase;
     this.db = DatabaseService.getInstance();
+    this.tokenService = new TokenService(supabase);
   }
 
   /**
@@ -116,6 +126,24 @@ export class AuthService {
       throw new Error('User profile not found');
     }
 
+    // Create a new token family for this login session
+    const tokenFamilyId = await this.tokenService.createTokenFamily(data.user.id);
+    
+    // Store metadata for the refresh token
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 14); // 14 days expiry for refresh token
+    
+    await this.tokenService.storeTokenMetadata(
+      data.session.refresh_token,
+      {
+        userId: data.user.id,
+        tokenFamily: tokenFamilyId,
+        lastRefreshed: new Date(),
+        expiresAt: expiresAt,
+        revoked: false
+      }
+    );
+
     // Update last login timestamp
     await this.db.users()
       .update({ last_login: new Date() })
@@ -136,39 +164,106 @@ export class AuthService {
    * @param token JWT token
    * @returns Boolean indicating if the token is valid
    */
-  async validateSession(token: string): Promise<boolean> {
+  async validateSession(token: string): Promise<TokenValidationResult> {
     const { data: { user }, error } = await this.supabase.auth.getUser(token);
 
     if (error) {
-      return false;
+      return {
+        isValid: false,
+        isExpired: error.message.includes('expired'),
+        error: error.message
+      };
     }
 
     // Check if the user exists in our database
     if (user) {
       const { data } = await this.db.users()
-        .select('id')
+        .select('id, subscriptionStatus')
         .eq('id', user.id)
         .single();
       
-      return !!data;
+      if (data) {
+        return {
+          isValid: true,
+          isExpired: false,
+          userId: data.id
+        };
+      }
     }
     
-    return false;
+    return {
+      isValid: false,
+      isExpired: false,
+      error: 'User not found'
+    };
+  }
+
+  /**
+   * Validate a refresh token
+   * @param refreshToken Refresh token to validate
+   * @returns Boolean indicating if the token is valid
+   */
+  async validateRefreshToken(refreshToken: string): Promise<boolean> {
+    const { data, error } = await this.supabase.auth.refreshSession({
+      refresh_token: refreshToken
+    });
+
+    return !error && !!data.session;
   }
 
   /**
    * Refresh the session token
    * @returns New session data
    */
-  async refreshToken(refreshToken: string): Promise<{ access_token: string; refresh_token: string; expires_at: number }> {
-    const { data, error } = await this.supabase.auth.refreshSession({ refresh_token: refreshToken });
-
-    if (error) {
-      throw error;
+  async refreshToken(refreshToken: string): Promise<{ 
+    access_token: string; 
+    refresh_token: string; 
+    expires_at: number 
+  }> {
+    // Validate the token against our database first (to check for reuse/revocation)
+    const tokenMetadata = await this.tokenService.validateRefreshToken(refreshToken);
+    if (!tokenMetadata) {
+      throw new Error('Invalid refresh token');
     }
+    
+    // Check if the token family is valid
+    const isTokenFamilyValid = await this.tokenService.isTokenFamilyValid(tokenMetadata.tokenFamily);
+    if (!isTokenFamilyValid) {
+      throw new Error('Token family has been revoked');
+    }
+    
+    // Invalidate the current refresh token (token rotation)
+    await this.tokenService.invalidateRefreshToken(refreshToken);
+    
+    // Get new tokens from Supabase
+    const { data, error } = await this.supabase.auth.refreshSession({
+      refresh_token: refreshToken
+    });
+
+    if (error || !data.session) {
+      throw new Error('Failed to refresh session: ' + (error?.message || 'Session data is missing'));
+    }
+    
+    // Store the new refresh token
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 14); // 14 days expiry for refresh token
+    
+    await this.tokenService.storeTokenMetadata(
+      data.session.refresh_token,
+      {
+        userId: tokenMetadata.userId,
+        tokenFamily: tokenMetadata.tokenFamily,
+        lastRefreshed: new Date(),
+        expiresAt: expiresAt,
+        revoked: false
+      }
+    );
+    
+    // Update the token family's last used timestamp
+    await this.tokenService.updateTokenFamilyUsage(tokenMetadata.tokenFamily);
 
     if (!data.session) {
-      throw new Error('Failed to refresh session');
+      throw new Error('No session returned from refresh');
     }
 
     return {
@@ -233,13 +328,25 @@ export class AuthService {
   }
 
   /**
-   * Logout a user
+   * Logout a user and revoke their token family
+   * @param refreshToken The current refresh token
+   * @param userId The user's ID
    */
-  async logout(): Promise<void> {
-    const { error } = await this.supabase.auth.signOut();
-    
-    if (error) {
-      throw error;
+  async logout(refreshToken: string, userId: string): Promise<void> {
+    try {
+      // Get token metadata to find the token family
+      const tokenMetadata = await this.tokenService.validateRefreshToken(refreshToken);
+      
+      if (tokenMetadata) {
+        // Revoke the entire token family
+        await this.tokenService.revokeTokenFamily(tokenMetadata.tokenFamily, userId);
+      }
+      
+      // Sign out with Supabase Auth
+      await this.supabase.auth.signOut();
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Continue with logout even if there's an error with token revocation
     }
   }
 }

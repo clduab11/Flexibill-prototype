@@ -9,8 +9,7 @@ import authRoutes from './api/authRoutes';
 import { DatabaseService } from './db/DatabaseService';
 import { apiRateLimiter, authRateLimiter, plaidRateLimiter } from './middleware/rateLimit';
 import config from './config/environment';
-import { APIError } from './utils/errors';
-import { exec } from 'child_process';
+import { globalErrorHandler, notFoundHandler } from './middleware/errorMiddleware';
 
 // Create Express app
 const app = express();
@@ -62,44 +61,11 @@ app.get('/health', (req: Request, res: Response) => {
   });
 });
 
-// Global error handler
-app.use((err: any, req: Request, res: Response, next: NextFunction) => {
-  console.error('Unhandled error:', err);
-  
-  // Check if it's our custom APIError
-  if (err instanceof APIError) {
-    res.status(err.status).json({
-      success: false,
-      error: {
-        message: err.message,
-        code: err.code
-      }
-    });
-    return;
-  }
-  
-  // Handle specific error types
-  if (err.code === 'P2025') { // Prisma not found error
-    res.status(404).json({
-      success: false,
-      error: {
-        message: 'The requested resource was not found',
-        code: 'NOT_FOUND_ERROR'
-      }
-    });
-    return;
-  }
-  
-  // Default error response
-  const statusCode = err.status || 500;
-  res.status(statusCode).json({
-    success: false,
-    error: {
-      message: err.message || 'Internal Server Error',
-      code: err.code || 'INTERNAL_ERROR'
-    }
-  });
-});
+// 404 handler for routes not found
+app.use(notFoundHandler);
+
+// Global error handler (must be last)
+app.use(globalErrorHandler);
 
 // Start server
 const server = app.listen(PORT, () => {
@@ -148,45 +114,6 @@ process.on('unhandledRejection', (reason: Error | any) => {
       process.exit(1);
     }
   });
-});
-
-// CI/CD pipeline setup using GitHub Actions
-exec('echo "Setting up CI/CD pipeline using GitHub Actions..."', (error, stdout, stderr) => {
-  if (error) {
-    console.error(`Error setting up CI/CD pipeline: ${error.message}`);
-    return;
-  }
-  if (stderr) {
-    console.error(`CI/CD pipeline setup stderr: ${stderr}`);
-    return;
-  }
-  console.log(`CI/CD pipeline setup stdout: ${stdout}`);
-});
-
-// Configure staging and production environments
-exec('echo "Configuring staging and production environments..."', (error, stdout, stderr) => {
-  if (error) {
-    console.error(`Error configuring environments: ${error.message}`);
-    return;
-  }
-  if (stderr) {
-    console.error(`Environment configuration stderr: ${stderr}`);
-    return;
-  }
-  console.log(`Environment configuration stdout: ${stdout}`);
-});
-
-// Deploy backend to Azure App Service
-exec('echo "Deploying backend to Azure App Service..."', (error, stdout, stderr) => {
-  if (error) {
-    console.error(`Error deploying to Azure App Service: ${error.message}`);
-    return;
-  }
-  if (stderr) {
-    console.error(`Azure App Service deployment stderr: ${stderr}`);
-    return;
-  }
-  console.log(`Azure App Service deployment stdout: ${stdout}`);
 });
 
 export default server;
