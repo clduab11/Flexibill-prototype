@@ -1,4 +1,4 @@
-import { CircuitBreaker } from './CircuitBreaker';
+import { CircuitBreaker } from './circuitBreaker';
 
 /**
  * Registry for managing multiple circuit breakers

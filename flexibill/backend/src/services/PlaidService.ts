@@ -7,7 +7,6 @@ import {
   DepositoryAccountSubtype,
   WebhookType,
   TransactionsSyncRequest,
-  TransactionsSyncResponse,
   ItemGetRequest,
   TransactionsGetRequest
 } from 'plaid';
@@ -69,10 +68,8 @@ export async function createLinkToken(userId: string) {
               },
             });
           }, 
-          { 
-            maxRetries: MAX_RETRIES, 
-            retryCondition: isTransientError 
-          }
+          MAX_RETRIES, 
+          isTransientError
         );
       }
     );
@@ -118,10 +115,8 @@ export async function exchangePublicToken(publicToken: string, metadata: any, us
               public_token: publicToken,
             });
           },
-          { 
-            maxRetries: MAX_RETRIES, 
-            retryCondition: isTransientError 
-          }
+          MAX_RETRIES, 
+          isTransientError
         );
       }
     );
@@ -211,10 +206,8 @@ export async function getItem(itemId: string) {
           async () => {
             return await client.itemGet(request);
           },
-          { 
-            maxRetries: MAX_RETRIES, 
-            retryCondition: isTransientError 
-          }
+          MAX_RETRIES, 
+          isTransientError
         );
       }
     );
@@ -260,10 +253,8 @@ export async function getAccounts(itemId: string) {
               access_token: accessToken,
             });
           },
-          { 
-            maxRetries: MAX_RETRIES, 
-            retryCondition: isTransientError 
-          }
+          MAX_RETRIES, 
+          isTransientError
         );
       }
     );
@@ -372,7 +363,7 @@ export async function getUserAccounts(userId: string) {
   }
 }
 
-export async function syncTransactions(itemId: string, startDate: string, endDate: string) {
+export async function syncTransactions(itemId: string) {
   try {
     const db = DatabaseService.getInstance();
     const { data, error } = await db.getClient()
@@ -409,13 +400,11 @@ export async function syncTransactions(itemId: string, startDate: string, endDat
 
 export async function handlePlaidWebhook(event: any) {
   try {
-    const db = DatabaseService.getInstance();
-
     switch (event.webhook_type) {
       case WebhookType.Transactions:
         // Handle transaction webhooks - sync without date parameters in v36
         const itemId = event.item_id;
-        await syncTransactions(itemId, '', ''); // Dates no longer needed in v36
+        await syncTransactions(itemId); // Dates no longer needed in v36
         break;
       default:
         console.warn(`Unhandled webhook type: ${event.webhook_type}`);

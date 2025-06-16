@@ -46,7 +46,8 @@ router.get('/',
     try {
       const userId = req.user?.id;
       if (!userId) {
-        return APIResponse.unauthorized(res);
+        APIResponse.unauthorized(res);
+        return;
       }
 
       const filter: TransactionFilter = {
@@ -70,10 +71,10 @@ router.get('/',
       };
 
       const transactions = await transactionService.getTransactions(userId, filter);
-      return APIResponse.success(res, { transactions });
+      APIResponse.success(res, { transactions });
     } catch (error) {
       console.error('Error fetching transactions:', error);
-      return APIResponse.internalError(res);
+      APIResponse.internalError(res);
     }
   }
 );
@@ -90,7 +91,8 @@ router.put('/:id/tags',
     try {
       const userId = req.user?.id;
       if (!userId) {
-        return APIResponse.unauthorized(res);
+        APIResponse.unauthorized(res);
+        return;
       }
 
       const transaction = await transactionService.updateTransactionTags(
@@ -98,16 +100,18 @@ router.put('/:id/tags',
         req.params.id,
         req.body.tags
       );
-      return APIResponse.success(res, { transaction });
+      APIResponse.success(res, { transaction });
     } catch (error) {
       if (error instanceof NotFoundError) {
-        return APIResponse.notFound(res, error.message);
+        APIResponse.notFound(res, error.message);
+        return;
       }
       if (error instanceof ValidationError) {
-        return APIResponse.badRequest(res, error.message);
+        APIResponse.badRequest(res, error.message);
+        return;
       }
       console.error('Error updating transaction tags:', error);
-      return APIResponse.internalError(res);
+      APIResponse.internalError(res);
     }
   }
 );
@@ -119,14 +123,15 @@ router.get('/recurring',
     try {
       const userId = req.user?.id;
       if (!userId) {
-        return APIResponse.unauthorized(res);
+        APIResponse.unauthorized(res);
+        return;
       }
 
       const transactions = await transactionService.detectRecurringTransactions(userId);
-      return APIResponse.success(res, { transactions });
+      APIResponse.success(res, { transactions });
     } catch (error) {
       console.error('Error detecting recurring transactions:', error);
-      return APIResponse.internalError(res);
+      APIResponse.internalError(res);
     }
   }
 );
@@ -143,20 +148,22 @@ router.post('/categorize',
     try {
       const userId = req.user?.id;
       if (!userId) {
-        return APIResponse.unauthorized(res);
+        APIResponse.unauthorized(res);
+        return;
       }
 
       const transactions = await transactionService.categorizeTransactions(
         userId,
         req.body as Transaction[]
       );
-      return APIResponse.success(res, { transactions });
+      APIResponse.success(res, { transactions });
     } catch (error) {
       if (error instanceof ValidationError) {
-        return APIResponse.badRequest(res, error.message);
+        APIResponse.badRequest(res, error.message);
+        return;
       }
       console.error('Error categorizing transactions:', error);
-      return APIResponse.internalError(res);
+      APIResponse.internalError(res);
     }
   }
 );
@@ -168,14 +175,15 @@ router.get('/summaries',
     try {
       const userId = req.user?.id;
       if (!userId) {
-        return APIResponse.unauthorized(res);
+        APIResponse.unauthorized(res);
+        return;
       }
 
       const summaries = await transactionService.generateTransactionSummaries(userId);
-      return APIResponse.success(res, { summaries });
+      APIResponse.success(res, { summaries });
     } catch (error) {
       console.error('Error generating transaction summaries:', error);
-      return APIResponse.internalError(res);
+      APIResponse.internalError(res);
     }
   }
 );
@@ -187,14 +195,15 @@ router.get('/analysis',
     try {
       const userId = req.user?.id;
       if (!userId) {
-        return APIResponse.unauthorized(res);
+        APIResponse.unauthorized(res);
+        return;
       }
 
       const analysis = await transactionService.analyzeTransactions(userId);
-      return APIResponse.success(res, { analysis });
+      APIResponse.success(res, { analysis });
     } catch (error) {
       console.error('Error analyzing transactions:', error);
-      return APIResponse.internalError(res);
+      APIResponse.internalError(res);
     }
   }
 );

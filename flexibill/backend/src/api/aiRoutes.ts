@@ -1,6 +1,5 @@
 import express from 'express';
 import { authenticateUser } from '../middleware/authMiddleware';
-import { BillRecommendation, CashFlowAnalysis } from '@flexibill/shared/types';
 import AIService from '../services/AIService';
 import { DatabaseService } from '../db/DatabaseService';
 
@@ -13,15 +12,6 @@ interface PremiumInsight {
   created_at: Date;
 }
 
-interface SavingsOpportunity {
-  id: string;
-  type: 'duplicate_subscription' | 'high_bill' | 'unused_service';
-  title: string;
-  description: string;
-  potentialSavings: number;
-  confidence: number;
-  created_at: Date;
-}
 
 const router = express.Router();
 const aiService = new AIService();
@@ -32,15 +22,16 @@ router.get('/bill-recommendations', authenticateUser, async (req, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
+      res.status(401).json({ error: 'User ID is required' });
+      return;
     }
 
-    const { data: bills, error: billsError } = await db.bills().select('*').eq('user_id', userId);
+    const { data: bills, error: billsError } = await db.getClient().from('bills').select('*').eq('user_id', userId);
     if (billsError) {
       throw new Error('Failed to fetch bills');
     }
 
-    const { data: transactions, error: transactionsError } = await db.transactions().select('*').eq('user_id', userId);
+    const { data: transactions, error: transactionsError } = await db.getClient().from('transactions').select('*').eq('user_id', userId);
     if (transactionsError) {
       throw new Error('Failed to fetch transactions');
     }
@@ -58,15 +49,16 @@ router.get('/cash-flow', authenticateUser, async (req, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
+      res.status(401).json({ error: 'User ID is required' });
+      return;
     }
 
-    const { data: transactions, error: transactionsError } = await db.transactions().select('*').eq('user_id', userId);
+    const { data: transactions, error: transactionsError } = await db.getClient().from('transactions').select('*').eq('user_id', userId);
     if (transactionsError) {
       throw new Error('Failed to fetch transactions');
     }
 
-    const { data: bills, error: billsError } = await db.bills().select('*').eq('user_id', userId);
+    const { data: bills, error: billsError } = await db.getClient().from('bills').select('*').eq('user_id', userId);
     if (billsError) {
       throw new Error('Failed to fetch bills');
     }
@@ -84,12 +76,14 @@ router.get('/premium-insights', authenticateUser, async (req, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
+      res.status(401).json({ error: 'User ID is required' });
+      return;
     }
 
     const userSubscription = req.user?.subscription;
     if (userSubscription !== 'premium') {
-      return res.status(403).json({ error: 'Premium subscription required' });
+      res.status(403).json({ error: 'Premium subscription required' });
+      return;
     }
 
     // TODO: Implement premium insights
@@ -106,12 +100,14 @@ router.post('/optimize-schedule', authenticateUser, async (req, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
+      res.status(401).json({ error: 'User ID is required' });
+      return;
     }
 
-    const { bills, constraints } = req.body;
+    const { bills } = req.body;
     if (!Array.isArray(bills)) {
-      return res.status(400).json({ error: 'Bills must be an array' });
+      res.status(400).json({ error: 'Bills must be an array' });
+      return;
     }
 
     // TODO: Implement bill schedule optimization
@@ -132,15 +128,16 @@ router.get('/savings-opportunities', authenticateUser, async (req, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
-      return res.status(401).json({ error: 'User ID is required' });
+      res.status(401).json({ error: 'User ID is required' });
+      return;
     }
 
-    const { data: transactions, error: transactionsError } = await db.transactions().select('*').eq('user_id', userId);
+    const { data: transactions, error: transactionsError } = await db.getClient().from('transactions').select('*').eq('user_id', userId);
     if (transactionsError) {
       throw new Error('Failed to fetch transactions');
     }
 
-    const { data: bills, error: billsError } = await db.bills().select('*').eq('user_id', userId);
+    const { data: bills, error: billsError } = await db.getClient().from('bills').select('*').eq('user_id', userId);
     if (billsError) {
       throw new Error('Failed to fetch bills');
     }

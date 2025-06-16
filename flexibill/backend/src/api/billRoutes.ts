@@ -34,17 +34,19 @@ router.post('/',
     try {
       const userId = req.user?.id;
       if (!userId) {
-        return APIResponse.unauthorized(res);
+        APIResponse.unauthorized(res);
+        return;
       }
 
       const bill = await billService.createBill(userId, req.body);
-      return APIResponse.created(res, bill);
+      APIResponse.created(res, bill);
     } catch (error) {
       if (error instanceof ValidationError) {
-        return APIResponse.badRequest(res, error.message);
+        APIResponse.badRequest(res, error.message);
+        return;
       }
       console.error('Error creating bill:', error);
-      return APIResponse.internalError(res);
+      APIResponse.internalError(res);
     }
   }
 );
@@ -62,7 +64,8 @@ router.get('/',
     try {
       const userId = req.user?.id;
       if (!userId) {
-        return APIResponse.unauthorized(res);
+        APIResponse.unauthorized(res);
+        return;
       }
 
       let bills: Bill[];
@@ -80,10 +83,10 @@ router.get('/',
         bills = await billService.getUserBills(userId);
       }
 
-      return APIResponse.success(res, { bills });
+      APIResponse.success(res, { bills });
     } catch (error) {
       console.error('Error fetching bills:', error);
-      return APIResponse.internalError(res);
+      APIResponse.internalError(res);
     }
   }
 );
@@ -96,17 +99,19 @@ router.get('/:id',
     try {
       const userId = req.user?.id;
       if (!userId) {
-        return APIResponse.unauthorized(res);
+        APIResponse.unauthorized(res);
+        return;
       }
 
       const bill = await billService.getBill(userId, req.params.id);
-      return APIResponse.success(res, { bill });
+      APIResponse.success(res, { bill });
     } catch (error) {
       if (error instanceof NotFoundError) {
-        return APIResponse.notFound(res, error.message);
+        APIResponse.notFound(res, error.message);
+        return;
       }
       console.error('Error fetching bill:', error);
-      return APIResponse.internalError(res);
+      APIResponse.internalError(res);
     }
   }
 );
@@ -122,20 +127,23 @@ router.put('/:id',
     try {
       const userId = req.user?.id;
       if (!userId) {
-        return APIResponse.unauthorized(res);
+        APIResponse.unauthorized(res);
+        return;
       }
 
       const bill = await billService.updateBill(userId, req.params.id, req.body);
-      return APIResponse.success(res, { bill });
+      APIResponse.success(res, { bill });
     } catch (error) {
       if (error instanceof NotFoundError) {
-        return APIResponse.notFound(res, error.message);
+        APIResponse.notFound(res, error.message);
+        return;
       }
       if (error instanceof ValidationError) {
-        return APIResponse.badRequest(res, error.message);
+        APIResponse.badRequest(res, error.message);
+        return;
       }
       console.error('Error updating bill:', error);
-      return APIResponse.internalError(res);
+      APIResponse.internalError(res);
     }
   }
 );
@@ -148,17 +156,19 @@ router.delete('/:id',
     try {
       const userId = req.user?.id;
       if (!userId) {
-        return APIResponse.unauthorized(res);
+        APIResponse.unauthorized(res);
+        return;
       }
 
       await billService.deleteBill(userId, req.params.id);
-      return APIResponse.noContent(res);
+      APIResponse.noContent(res);
     } catch (error) {
       if (error instanceof NotFoundError) {
-        return APIResponse.notFound(res, error.message);
+        APIResponse.notFound(res, error.message);
+        return;
       }
       console.error('Error deleting bill:', error);
-      return APIResponse.internalError(res);
+      APIResponse.internalError(res);
     }
   }
 );
@@ -170,14 +180,15 @@ router.get('/overdue',
     try {
       const userId = req.user?.id;
       if (!userId) {
-        return APIResponse.unauthorized(res);
+        APIResponse.unauthorized(res);
+        return;
       }
 
       const bills = await billService.getOverdueBills(userId);
-      return APIResponse.success(res, { bills });
+      APIResponse.success(res, { bills });
     } catch (error) {
       console.error('Error fetching overdue bills:', error);
-      return APIResponse.internalError(res);
+      APIResponse.internalError(res);
     }
   }
 );
@@ -189,14 +200,15 @@ router.post('/optimize',
     try {
       const userId = req.user?.id;
       if (!userId) {
-        return APIResponse.unauthorized(res);
+        APIResponse.unauthorized(res);
+        return;
       }
 
       await billService.optimizeBillSchedule(userId);
-      return APIResponse.success(res, { message: 'Bill schedule optimized successfully' });
+      APIResponse.success(res, { message: 'Bill schedule optimized successfully' });
     } catch (error) {
       console.error('Error optimizing bill schedule:', error);
-      return APIResponse.internalError(res);
+      APIResponse.internalError(res);
     }
   }
 );
@@ -209,23 +221,26 @@ router.post('/:id/request-due-date-change',
     try {
       const userId = req.user?.id;
       if (!userId) {
-        return APIResponse.unauthorized(res);
+        APIResponse.unauthorized(res);
+        return;
       }
 
       const { id } = req.params;
       const { newDueDate } = req.body;
 
       const updatedBill = await billService.requestDueDateChange(userId, id, newDueDate);
-      return APIResponse.success(res, { bill: updatedBill });
+      APIResponse.success(res, { bill: updatedBill });
     } catch (error) {
       if (error instanceof NotFoundError) {
-        return APIResponse.notFound(res, error.message);
+        APIResponse.notFound(res, error.message);
+        return;
       }
       if (error instanceof ValidationError) {
-        return APIResponse.badRequest(res, error.message);
+        APIResponse.badRequest(res, error.message);
+        return;
       }
       console.error('Error requesting due date change:', error);
-      return APIResponse.internalError(res);
+      APIResponse.internalError(res);
     }
   }
 );
@@ -237,14 +252,15 @@ router.post('/detect-from-transactions',
     try {
       const userId = req.user?.id;
       if (!userId) {
-        return APIResponse.unauthorized(res);
+        APIResponse.unauthorized(res);
+        return;
       }
 
       const detectedBills = await billService.detectBillsFromTransactions(userId);
-      return APIResponse.success(res, { bills: detectedBills });
+      APIResponse.success(res, { bills: detectedBills });
     } catch (error) {
       console.error('Error detecting bills from transactions:', error);
-      return APIResponse.internalError(res);
+      APIResponse.internalError(res);
     }
   }
 );

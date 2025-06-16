@@ -32,12 +32,13 @@ router.post(
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        return APIResponse.badRequest(
+        APIResponse.badRequest(
           res, 
           'Validation error', 
           'VALIDATION_ERROR', 
           errors.array()
         );
+        return;
       }
 
       const { email, password, firstName, lastName } = req.body;
@@ -49,7 +50,7 @@ router.post(
         lastName,
       });
 
-      return APIResponse.created(res, {
+      APIResponse.created(res, {
         user: result.user,
         token: result.session.access_token,
       });
@@ -58,10 +59,11 @@ router.post(
       
       // Handle specific error cases
       if (error.message?.includes('already registered')) {
-        return APIResponse.conflict(res, 'Email already registered');
+        APIResponse.conflict(res, 'Email already registered');
+        return;
       }
       
-      return APIResponse.error(
+      APIResponse.error(
         res, 
         'Registration failed', 
         'REGISTRATION_ERROR', 
@@ -87,19 +89,20 @@ router.post(
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        return APIResponse.badRequest(
+        APIResponse.badRequest(
           res, 
           'Validation error', 
           'VALIDATION_ERROR', 
           errors.array()
         );
+        return;
       }
 
       const { email, password } = req.body;
 
       const result = await authService.login(email, password);
 
-      return APIResponse.success(res, {
+      APIResponse.success(res, {
         user: result.user,
         token: result.session.access_token,
         refreshToken: result.session.refresh_token,
@@ -110,10 +113,11 @@ router.post(
       
       // Handle specific error cases
       if (error.message?.includes('Invalid login credentials')) {
-        return APIResponse.unauthorized(res, 'Invalid email or password');
+        APIResponse.unauthorized(res, 'Invalid email or password');
+        return;
       }
       
-      return APIResponse.error(
+      APIResponse.error(
         res, 
         'Login failed', 
         'LOGIN_ERROR', 
@@ -138,19 +142,20 @@ router.post(
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        return APIResponse.badRequest(
+        APIResponse.badRequest(
           res, 
           'Validation error', 
           'VALIDATION_ERROR', 
           errors.array()
         );
+        return;
       }
 
       const { refreshToken } = req.body;
 
       const session = await authService.refreshToken(refreshToken);
 
-      return APIResponse.success(res, {
+      APIResponse.success(res, {
         token: session.access_token,
         refreshToken: session.refresh_token,
         expiresAt: session.expires_at,
@@ -176,25 +181,26 @@ router.post(
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        return APIResponse.badRequest(
+        APIResponse.badRequest(
           res, 
           'Validation error', 
           'VALIDATION_ERROR', 
           errors.array()
         );
+        return;
       }
 
       const { email } = req.body;
 
       await authService.sendPasswordResetEmail(email);
 
-      return APIResponse.success(res, { 
+      APIResponse.success(res, { 
         message: 'Password reset email sent' 
       });
     } catch (error: any) {
       console.error('Password reset error:', error);
       // Don't reveal if the email exists or not for security reasons
-      return APIResponse.success(res, { 
+      APIResponse.success(res, { 
         message: 'If the email exists, a password reset link has been sent' 
       });
     }
@@ -221,19 +227,20 @@ router.post(
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        return APIResponse.badRequest(
+        APIResponse.badRequest(
           res, 
           'Validation error', 
           'VALIDATION_ERROR', 
           errors.array()
         );
+        return;
       }
 
       const { password } = req.body;
 
       await authService.updatePassword(password);
 
-      return APIResponse.success(res, { 
+      APIResponse.success(res, { 
         message: 'Password reset successfully' 
       });
     } catch (error: any) {
@@ -286,16 +293,17 @@ router.put(
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        return APIResponse.badRequest(
+        APIResponse.badRequest(
           res, 
           'Validation error', 
           'VALIDATION_ERROR', 
           errors.array()
         );
+        return;
       }
 
       if (!req.user) {
-        return APIResponse.unauthorized(res, 'Not authenticated');
+        APIResponse.unauthorized(res, 'Not authenticated');
       }
 
       const { firstName, lastName } = req.body;
@@ -305,7 +313,7 @@ router.put(
         lastName,
       });
 
-      return APIResponse.success(res, { user: updatedUser });
+      APIResponse.success(res, { user: updatedUser });
     } catch (error: any) {
       console.error('Update profile error:', error);
       return APIResponse.internalError(

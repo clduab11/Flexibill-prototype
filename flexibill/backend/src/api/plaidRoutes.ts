@@ -11,16 +11,17 @@ router.use(authenticateUser);
 router.post('/create-link-token', async (req: Request, res: Response) => {
   try {
     if (!req.user) {
-      return APIResponse.unauthorized(res, 'User authentication required');
+      APIResponse.unauthorized(res, 'User authentication required');
+      return;
     }
     
     console.log(`Creating Plaid Link token for user ${req.user.id}...`);
     const linkToken = await createLinkToken(req.user.id);
     
-    return APIResponse.success(res, { linkToken });
+    APIResponse.success(res, { linkToken });
   } catch (error: any) {
     console.error('Error creating Plaid Link token:', error);
-    return APIResponse.error(
+    APIResponse.error(
       res,
       'Failed to create link token',
       'PLAID_LINK_ERROR',
@@ -33,25 +34,27 @@ router.post('/create-link-token', async (req: Request, res: Response) => {
 router.post('/exchange-public-token', async (req: Request, res: Response) => {
   try {
     if (!req.user) {
-      return APIResponse.unauthorized(res, 'User authentication required');
+      APIResponse.unauthorized(res, 'User authentication required');
+      return;
     }
     
     const { publicToken, metadata } = req.body;
     
     if (!publicToken) {
-      return APIResponse.badRequest(res, 'Public token is required');
+      APIResponse.badRequest(res, 'Public token is required');
+      return;
     }
     
     console.log(`Exchanging Plaid public token for user ${req.user.id}...`);
     const result = await exchangePublicToken(publicToken, metadata, req.user.id);
     
-    return APIResponse.success(res, { 
+    APIResponse.success(res, { 
       success: true,
       itemId: result.itemID 
     });
   } catch (error: any) {
     console.error('Error exchanging Plaid public token:', error);
-    return APIResponse.error(
+    APIResponse.error(
       res,
       'Failed to exchange public token',
       'PLAID_EXCHANGE_ERROR',
@@ -65,16 +68,17 @@ router.post('/exchange-public-token', async (req: Request, res: Response) => {
 router.get('/accounts', async (req: Request, res: Response) => {
   try {
     if (!req.user) {
-      return APIResponse.unauthorized(res, 'User authentication required');
+      APIResponse.unauthorized(res, 'User authentication required');
+      return;
     }
     
     // Get all accounts for the user
     const accounts = await getUserAccounts(req.user.id);
     
-    return APIResponse.success(res, { accounts });
+    APIResponse.success(res, { accounts });
   } catch (error: any) {
     console.error('Error retrieving accounts:', error);
-    return APIResponse.error(
+    APIResponse.error(
       res,
       'Failed to retrieve accounts',
       'PLAID_ACCOUNTS_ERROR',
@@ -88,13 +92,15 @@ router.get('/accounts', async (req: Request, res: Response) => {
 router.get('/item/:itemId', async (req: Request, res: Response) => {
   try {
     if (!req.user) {
-      return APIResponse.unauthorized(res, 'User authentication required');
+      APIResponse.unauthorized(res, 'User authentication required');
+      return;
     }
     
     const { itemId } = req.params;
     
     if (!itemId) {
-      return APIResponse.badRequest(res, 'Item ID is required');
+      APIResponse.badRequest(res, 'Item ID is required');
+      return;
     }
     
     // Validate that this item belongs to the authenticated user
@@ -107,16 +113,17 @@ router.get('/item/:itemId', async (req: Request, res: Response) => {
       .single();
       
     if (error || !data) {
-      return APIResponse.notFound(res, 'Item not found or does not belong to the authenticated user');
+      APIResponse.notFound(res, 'Item not found or does not belong to the authenticated user');
+      return;
     }
     
     // Get item details
     const item = await getItem(itemId);
     
-    return APIResponse.success(res, { item });
+    APIResponse.success(res, { item });
   } catch (error: any) {
     console.error('Error retrieving item details:', error);
-    return APIResponse.error(
+    APIResponse.error(
       res,
       'Failed to retrieve item details',
       'PLAID_ITEM_ERROR',
@@ -130,22 +137,24 @@ router.get('/item/:itemId', async (req: Request, res: Response) => {
 router.post('/sync-transactions', async (req: Request, res: Response) => {
   try {
     if (!req.user) {
-      return APIResponse.unauthorized(res, 'User authentication required');
+      APIResponse.unauthorized(res, 'User authentication required');
+      return;
     }
 
     const { itemId, startDate, endDate } = req.body;
 
     if (!itemId || !startDate || !endDate) {
-      return APIResponse.badRequest(res, 'Item ID, start date, and end date are required');
+      APIResponse.badRequest(res, 'Item ID, start date, and end date are required');
+      return;
     }
 
     console.log(`Syncing transactions for item ${itemId} and user ${req.user.id}...`);
     const transactions = await syncTransactions(itemId, startDate, endDate);
 
-    return APIResponse.success(res, { transactions });
+    APIResponse.success(res, { transactions });
   } catch (error: any) {
     console.error('Error syncing transactions:', error);
-    return APIResponse.error(
+    APIResponse.error(
       res,
       'Failed to sync transactions',
       'PLAID_SYNC_ERROR',
@@ -163,10 +172,10 @@ router.post('/webhook', async (req: Request, res: Response) => {
     console.log('Received Plaid webhook event:', webhookEvent);
     await handlePlaidWebhook(webhookEvent);
 
-    return APIResponse.success(res, { message: 'Webhook event processed successfully' });
+    APIResponse.success(res, { message: 'Webhook event processed successfully' });
   } catch (error: any) {
     console.error('Error processing Plaid webhook event:', error);
-    return APIResponse.error(
+    APIResponse.error(
       res,
       'Failed to process webhook event',
       'PLAID_WEBHOOK_ERROR',
