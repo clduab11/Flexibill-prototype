@@ -6,11 +6,11 @@ import {
   CountryCode,
   DepositoryAccountSubtype,
   WebhookType,
-  WebhookCode,
   TransactionsSyncRequest,
-  TransactionsSyncResponse
+  TransactionsSyncResponse,
+  ItemGetRequest,
+  TransactionsGetRequest
 } from 'plaid';
-import { ItemGetRequest, TransactionsGetRequest } from 'plaid';
 import { DatabaseService } from '../db/DatabaseService';
 import { PlaidError, NotFoundError } from '../utils/errors';
 import { encrypt, decrypt } from '../utils/encryption';
@@ -389,11 +389,9 @@ export async function syncTransactions(itemId: string, startDate: string, endDat
 
     const request: TransactionsSyncRequest = {
       access_token: accessToken,
-      start_date: startDate,
-      end_date: endDate,
     };
 
-    const response: TransactionsSyncResponse = await client.transactionsSync(request);
+    const response = await client.transactionsSync(request);
     const transactions = response.data.added;
 
     // Store transactions in the database
@@ -414,19 +412,10 @@ export async function handlePlaidWebhook(event: any) {
     const db = DatabaseService.getInstance();
 
     switch (event.webhook_type) {
-      case WebhookType.TRANSACTIONS:
-        switch (event.webhook_code) {
-          case WebhookCode.INITIAL_UPDATE:
-          case WebhookCode.HISTORICAL_UPDATE:
-          case WebhookCode.DEFAULT_UPDATE:
-            const itemId = event.item_id;
-            const startDate = event.start_date;
-            const endDate = event.end_date;
-            await syncTransactions(itemId, startDate, endDate);
-            break;
-          default:
-            console.warn(`Unhandled webhook code: ${event.webhook_code}`);
-        }
+      case WebhookType.Transactions:
+        // Handle transaction webhooks - sync without date parameters in v36
+        const itemId = event.item_id;
+        await syncTransactions(itemId, '', ''); // Dates no longer needed in v36
         break;
       default:
         console.warn(`Unhandled webhook type: ${event.webhook_type}`);
